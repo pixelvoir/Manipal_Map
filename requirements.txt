@@ -1,0 +1,5 @@
+streamlit
+sqlalchemy
+pandas
+folium
+psycopg2-binary
