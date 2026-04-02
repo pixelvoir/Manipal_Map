@@ -86,6 +86,28 @@ st.markdown(
         border: 1px solid #d0e6d4;
         margin-bottom: 0.6rem;
     }
+    div[data-testid="stButton"] > button {
+        border-radius: 10px;
+        border: 1px solid #c8dac7;
+        background: #f5faf4;
+        color: var(--accent-dark);
+        padding: 0.42rem 0.75rem;
+        font-weight: 600;
+    }
+    div[data-testid="stButton"] > button:hover {
+        border-color: var(--accent);
+        background: #e9f4e6;
+        color: var(--accent-dark);
+    }
+    div[data-testid="stButton"] > button[kind="primary"] {
+        background: linear-gradient(180deg, #5f8d69 0%, #4f7b5a 100%);
+        color: #ffffff;
+        border-color: #4f7b5a;
+    }
+    div[data-testid="stButton"] > button[kind="primary"]:hover {
+        background: linear-gradient(180deg, #5a8964 0%, #456e50 100%);
+        color: #ffffff;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -413,18 +435,22 @@ with title_col:
     st.markdown('<p class="main-title">Manipal Location & Review Management</p>', unsafe_allow_html=True)
 with auth_col:
     if st.session_state.logged_in_user:
-        if st.button("Sign Out", use_container_width=True):
-            st.session_state.logged_in_user = None
-            st.session_state.show_auth = False
-            st.success("Signed out.")
-            st.rerun()
+        _, btn_col = st.columns([2.2, 1])
+        with btn_col:
+            if st.button("Sign Out", icon=":material/logout:"):
+                st.session_state.logged_in_user = None
+                st.session_state.show_auth = False
+                st.success("Signed out.")
+                st.rerun()
         st.markdown(
             f"<p class='status-text'>Signed in as {st.session_state.logged_in_user['name']}</p>",
             unsafe_allow_html=True,
         )
     else:
-        if st.button("Sign In", use_container_width=True):
-            st.session_state.show_auth = not st.session_state.show_auth
+        _, btn_col = st.columns([2.2, 1])
+        with btn_col:
+            if st.button("Sign In", icon=":material/login:"):
+                st.session_state.show_auth = not st.session_state.show_auth
         st.markdown("<p class='status-text'>Not signed in</p>", unsafe_allow_html=True)
 
 nav_col, content_col = st.columns([1.15, 3.85], gap="large")
@@ -432,10 +458,23 @@ nav_col, content_col = st.columns([1.15, 3.85], gap="large")
 with nav_col:
     st.markdown('<div class="nav-shell">', unsafe_allow_html=True)
     st.markdown("**View Mode**")
-    is_analytics = st.toggle("Map Database", value=(st.session_state.current_page == "analytics"), key="mode_toggle")
-    st.session_state.current_page = "analytics" if is_analytics else "map"
-    if not is_analytics:
-        st.caption("Map View enabled")
+    mode_col_1, mode_col_2 = st.columns(2)
+    with mode_col_1:
+        if st.button(
+            "Map View",
+            icon=":material/map:",
+            type="primary" if st.session_state.current_page == "map" else "secondary",
+            use_container_width=True,
+        ):
+            st.session_state.current_page = "map"
+    with mode_col_2:
+        if st.button(
+            "Map Database",
+            icon=":material/query_stats:",
+            type="primary" if st.session_state.current_page == "analytics" else "secondary",
+            use_container_width=True,
+        ):
+            st.session_state.current_page = "analytics"
 
     categories_df = get_categories()
     options = ["All"]
@@ -455,10 +494,10 @@ with nav_col:
     selected_label = st.selectbox("Filter by Category", options, index=options.index(current_label))
     st.session_state.selected_category_id = category_map.get(selected_label)
 
-    if st.button("Add New Category", use_container_width=True):
+    if st.button("Add New Category", icon=":material/category:", use_container_width=True):
         st.session_state.show_add_category = not st.session_state.show_add_category
 
-    if st.button("Add New Location", use_container_width=True):
+    if st.button("Add New Location", icon=":material/add_location_alt:", use_container_width=True):
         st.session_state.show_add_location = not st.session_state.show_add_location
 
     if st.button("Load Sample Data", use_container_width=True):
