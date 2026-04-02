@@ -1,6 +1,6 @@
 # Manipal Location & Review Management System
 
-Simple DBMS mini project aiming for easy user-based viewing and management of various locations in Manipal, and demonstrate the usage of SQL queries.
+Map-first Streamlit application for managing Manipal locations, reviews, and favorites with SQL-focused analytics.
 
 ## Tech Stack
 - Python + Streamlit (frontend)
@@ -10,9 +10,9 @@ Simple DBMS mini project aiming for easy user-based viewing and management of va
 
 ## File Structure
 - `db.py` -> database connection, schema, constraints, trigger, view
-- `queries.py` -> all SQL queries and DB operations
+- `queries.py` -> CRUD, auth, map details, analytics queries
 - `sample_data.py` -> sample inserts (Manipal locations)
-- `app.py` -> Streamlit UI
+- `app.py` -> map-first Streamlit UI
 
 ## Setup
 1. Create and activate a virtual environment (recommended).
@@ -33,19 +33,29 @@ Simple DBMS mini project aiming for easy user-based viewing and management of va
   ```
 
 ## Load Sample Data
-In the Streamlit sidebar, click **Load Sample Data**.
+Click **Load Sample Data** on the top control row.
 
-## Concepts Demonstrated
-- Basic queries: SELECT, INSERT, UPDATE, DELETE
-- JOIN
-- GROUP BY + aggregate
-- HAVING
-- Subqueries
-- Set operations (UNION, INTERSECT)
-- View (`location_avg_rating`)
-- ORDER BY
-- CTE (`WITH` clause)
-- Advanced:
-  - Procedure/function-style review insertion (PostgreSQL SQL function + SQLite equivalent)
-  - Trigger for review insert logging
-  - Cursor-style row iteration for stats
+## Main UI Flow
+- Main map shows all locations as markers
+- Click marker to open location details panel below map
+- Details panel supports review submission and favorites
+- Filter map by category
+- Add category and add location using control buttons and expanders
+- Login/logout is available at top right
+
+## Authentication
+- Register and login are built into the app
+- Passwords are stored as hashed values in the `Users.password_hash` column
+- Protected actions: add location, add review, add to favorites
+
+## SQL Analytics Page (Map Database)
+- Average rating per location
+- Top-rated locations (uses HAVING)
+- Most reviewed locations (uses CTE)
+- Users with most reviews (JOIN + CTE)
+
+## Database Features
+- Constraints: PK, FK, UNIQUE, CHECK
+- Trigger: logs review inserts in `ReviewLogs`
+- View: `location_avg_rating`
+- Stored function style review insertion: PostgreSQL function + SQLite equivalent transaction logic

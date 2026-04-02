@@ -40,11 +40,21 @@ def init_db() -> None:
                 CREATE TABLE IF NOT EXISTS Users (
                     user_id INTEGER PRIMARY KEY,
                     name VARCHAR(100) NOT NULL,
-                    email VARCHAR(150) UNIQUE NOT NULL
+                    email VARCHAR(150) UNIQUE NOT NULL,
+                    password_hash TEXT
                 )
                 """
             )
         )
+
+        # Backward-compatible migration for old databases that may not have this column.
+        if backend == "sqlite":
+            cols = conn.execute(text("PRAGMA table_info(Users)")).fetchall()
+            col_names = {row[1] for row in cols}
+            if "password_hash" not in col_names:
+                conn.execute(text("ALTER TABLE Users ADD COLUMN password_hash TEXT"))
+        elif backend == "postgresql":
+            conn.execute(text("ALTER TABLE Users ADD COLUMN IF NOT EXISTS password_hash TEXT"))
 
         conn.execute(
             text(

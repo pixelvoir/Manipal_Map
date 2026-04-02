@@ -1,12 +1,15 @@
-"""Streamlit UI for the Manipal Location & Review Management System."""
+"""Map-first Streamlit app for the Manipal Location & Review Management System."""
 
 from __future__ import annotations
 
 from datetime import date
+import hashlib
+import secrets
 
 import folium
 import pandas as pd
 import streamlit as st
+from streamlit_folium import st_folium
 
 from db import init_db
 from queries import (
@@ -14,52 +17,42 @@ from queries import (
     add_favorite,
     add_location,
     add_review_with_procedure,
-    add_user,
     average_rating_per_location,
-    cte_average_rating,
-    cursor_style_review_stats,
-    delete_demo_category,
-    delete_review,
     get_categories,
-    get_favorites,
+    get_location_details,
     get_locations,
-    get_reviews,
-    get_users,
-    insert_demo_category,
-    intersect_example,
-    location_avg_rating_view,
-    locations_sorted_by_rating,
-    locations_with_avg_above_four,
-    locations_with_highest_rating,
-    reviews_with_user_and_location,
+    get_reviews_for_location,
+    get_user_by_email,
+    most_reviewed_locations,
+    register_user,
     search_locations_by_category,
-    union_example,
-    update_demo_category,
-    update_location_description,
-    users_reviewed_more_than_average,
+    top_rated_locations,
+    users_with_most_reviews,
 )
 from sample_data import insert_sample_data
 
 
-st.set_page_config(page_title="Manipal Location & Review Management", layout="wide")
+st.set_page_config(page_title="Manipal Locations", layout="wide")
 
 st.markdown(
     """
     <style>
+    .title-row {
+        margin-bottom: 0.75rem;
+    }
     .main-title {
-        font-size: 2rem;
+        font-size: 1.85rem;
         font-weight: 700;
-        margin-bottom: 0.4rem;
+        margin: 0;
     }
-    .sub-text {
-        color: #4d4d4d;
-        margin-bottom: 1rem;
+    .muted {
+        color: #4f4f4f;
     }
-    .section-head {
-        margin-top: 0.5rem;
-        margin-bottom: 0.5rem;
-        font-size: 1.2rem;
-        font-weight: 600;
+    .panel {
+        border: 1px solid #e7e7e7;
+        border-radius: 10px;
+        padding: 0.8rem 0.9rem;
+        margin-top: 0.75rem;
     }
     </style>
     """,
@@ -67,359 +60,334 @@ st.markdown(
 )
 
 
-@st.cache_data(show_spinner=False)
-def _get_locations_for_map() -> pd.DataFrame:
-    return get_locations()
+def hash_password(password: str) -> str:
+    salt = secrets.token_hex(16)
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 120000)
+    return f"{salt}${digest.hex()}"
 
 
-def draw_map(df: pd.DataFrame, zoom: int = 15) -> None:
+def verify_password(password: str, stored: str | None) -> bool:
+    if not stored or "$" not in stored:
+        return False
+    salt, expected = stored.split("$", 1)
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 120000)
+    return digest.hex() == expected
+
+
+def require_login(action_text: str) -> bool:
+    if st.session_state.logged_in_user is None:
+        st.warning(f"Please login to {action_text}.")
+        st.session_state.show_auth = True
+        return False
+    return True
+
+
+def safe_df(df: pd.DataFrame, message: str = "No records found.") -> None:
     if df.empty:
-        st.info("No locations available to display on map.")
+        st.info(message)
+        return
+    st.dataframe(df, use_container_width=True, hide_index=True)
+
+
+def render_map(df: pd.DataFrame) -> None:
+    if df.empty:
+        st.info("No locations to show on map.")
         return
 
     valid = df.dropna(subset=["latitude", "longitude"])
     if valid.empty:
-        st.info("Locations do not have coordinates yet.")
+        st.info("Locations are missing coordinates.")
         return
 
     center = [valid["latitude"].mean(), valid["longitude"].mean()]
-    fmap = folium.Map(location=center, zoom_start=zoom)
+    fmap = folium.Map(location=center, zoom_start=15)
 
     for _, row in valid.iterrows():
-        popup_text = f"{row['name']} ({row['category_name']})"
+        tooltip = f"ID:{int(row['location_id'])} | {row['name']}"
         folium.Marker(
             [row["latitude"], row["longitude"]],
-            popup=popup_text,
-            tooltip=row["name"],
+            tooltip=tooltip,
+            popup=row["name"],
         ).add_to(fmap)
 
-    st.components.v1.html(fmap._repr_html_(), height=500)
+    result = st_folium(fmap, width=None, height=520, key="map_view")
+
+    last_clicked = result.get("last_clicked") if result else None
+    if last_clicked:
+        st.session_state.last_clicked_coords = (
+            float(last_clicked["lat"]),
+            float(last_clicked["lng"]),
+        )
+
+    marker_tip = result.get("last_object_clicked_tooltip") if result else None
+    if marker_tip and marker_tip.startswith("ID:"):
+        loc_id = marker_tip.split("|")[0].replace("ID:", "").strip()
+        if loc_id.isdigit():
+            st.session_state.selected_location_id = int(loc_id)
 
 
-def show_df(df: pd.DataFrame, empty_msg: str = "No records found.") -> None:
-    if df.empty:
-        st.info(empty_msg)
-    else:
-        st.dataframe(df, use_container_width=True, hide_index=True)
+def render_auth_panel() -> None:
+    if not st.session_state.show_auth:
+        return
+
+    with st.expander("Login / Register", expanded=True):
+        col_login, col_register = st.columns(2)
+
+        with col_login:
+            st.subheader("Login")
+            with st.form("login_form"):
+                email = st.text_input("Email", key="login_email")
+                password = st.text_input("Password", type="password", key="login_password")
+                login_submit = st.form_submit_button("Login")
+
+            if login_submit:
+                user = get_user_by_email(email)
+                if user and verify_password(password, user.get("password_hash")):
+                    st.session_state.logged_in_user = {
+                        "user_id": int(user["user_id"]),
+                        "name": user["name"],
+                        "email": user["email"],
+                    }
+                    st.session_state.show_auth = False
+                    st.success("Logged in successfully.")
+                    st.rerun()
+                else:
+                    st.error("Invalid email or password.")
+
+        with col_register:
+            st.subheader("Register")
+            with st.form("register_form"):
+                name = st.text_input("Name", key="reg_name")
+                email = st.text_input("Email", key="reg_email")
+                password = st.text_input("Password", type="password", key="reg_password")
+                register_submit = st.form_submit_button("Register")
+
+            if register_submit:
+                try:
+                    register_user(name, email, hash_password(password))
+                    st.success("Registration successful. Please login.")
+                except Exception as ex:
+                    st.error(f"Registration failed: {ex}")
 
 
-init_db()
-
-st.markdown('<div class="main-title">Manipal Location & Review Management System</div>', unsafe_allow_html=True)
-st.markdown(
-    '<div class="sub-text">Simple DBMS mini-project for viva demonstration using Streamlit + SQLAlchemy.</div>',
-    unsafe_allow_html=True,
-)
-
-with st.sidebar:
-    st.header("Navigation")
-    menu = st.radio(
-        "Go to",
-        [
-            "Add Category",
-            "Add Location",
-            "Add User",
-            "Add Review",
-            "View Locations",
-            "View Reviews",
-            "Add to Favorites",
-            "Search/Filter Locations by Category",
-        ],
-    )
-
-    st.markdown("---")
-    if st.button("Load Sample Data"):
-        try:
-            insert_sample_data()
-            _get_locations_for_map.clear()
-            st.success("Sample data loaded.")
-        except Exception as ex:
-            st.error(f"Could not load sample data: {ex}")
+def render_add_category() -> None:
+    if not st.session_state.show_add_category:
+        return
+    with st.expander("Add Category", expanded=True):
+        with st.form("add_category_form"):
+            category_name = st.text_input("Category Name")
+            submitted = st.form_submit_button("Save Category")
+        if submitted:
+            try:
+                add_category(category_name)
+                st.success("Category added.")
+            except Exception as ex:
+                st.error(f"Could not add category: {ex}")
 
 
-if menu == "Add Category":
-    st.markdown('<div class="section-head">Add Category</div>', unsafe_allow_html=True)
-    with st.form("add_category_form"):
-        category_name = st.text_input("Category Name")
-        submitted = st.form_submit_button("Add Category")
+def render_add_location() -> None:
+    if not st.session_state.show_add_location:
+        return
 
-    if submitted:
-        try:
-            add_category(category_name)
-            st.success("Category added successfully.")
-        except Exception as ex:
-            st.error(f"Error: {ex}")
+    with st.expander("Add Location", expanded=True):
+        if not require_login("add a location"):
+            return
 
-    show_df(get_categories())
+        categories = get_categories()
+        if categories.empty:
+            st.info("Create at least one category first.")
+            return
 
+        default_lat = 13.3520
+        default_lng = 74.7920
+        if st.session_state.last_clicked_coords:
+            default_lat, default_lng = st.session_state.last_clicked_coords
 
-elif menu == "Add Location":
-    st.markdown('<div class="section-head">Add Location</div>', unsafe_allow_html=True)
-
-    categories_df = get_categories()
-    if categories_df.empty:
-        st.warning("Please add categories first.")
-    else:
+        st.caption("Coordinates can be entered manually or auto-filled from last map click.")
         with st.form("add_location_form"):
-            name = st.text_input("Location Name")
+            name = st.text_input("Name")
             category_id = st.selectbox(
                 "Category",
-                categories_df["category_id"].tolist(),
-                format_func=lambda cid: f"{cid} - {categories_df.loc[categories_df['category_id'] == cid, 'category_name'].iloc[0]}",
+                categories["category_id"].tolist(),
+                format_func=lambda cid: f"{cid} - {categories.loc[categories['category_id'] == cid, 'category_name'].iloc[0]}",
             )
             address = st.text_input("Address")
             description = st.text_area("Description")
-
-            st.write("Set pin coordinates")
-            latitude = st.number_input("Latitude", value=13.3520, format="%.6f")
-            longitude = st.number_input("Longitude", value=74.7920, format="%.6f")
-
-            submitted = st.form_submit_button("Add Location")
-
-        preview_map = folium.Map(location=[latitude, longitude], zoom_start=16)
-        folium.Marker([latitude, longitude], tooltip="Selected Pin").add_to(preview_map)
-        st.caption("Map preview for selected coordinates")
-        st.components.v1.html(preview_map._repr_html_(), height=350)
+            latitude = st.number_input("Latitude", value=float(default_lat), format="%.6f")
+            longitude = st.number_input("Longitude", value=float(default_lng), format="%.6f")
+            submitted = st.form_submit_button("Save Location")
 
         if submitted:
             try:
                 add_location(name, int(category_id), address, description, float(latitude), float(longitude))
-                _get_locations_for_map.clear()
-                st.success("Location added successfully.")
+                st.success("Location added.")
+                st.rerun()
             except Exception as ex:
-                st.error(f"Error: {ex}")
-
-    show_df(get_locations())
+                st.error(f"Could not add location: {ex}")
 
 
-elif menu == "Add User":
-    st.markdown('<div class="section-head">Add User</div>', unsafe_allow_html=True)
-    with st.form("add_user_form"):
-        name = st.text_input("Name")
-        email = st.text_input("Email")
-        submitted = st.form_submit_button("Add User")
+def render_location_details() -> None:
+    if not st.session_state.selected_location_id:
+        st.info("Click a map marker to view location details.")
+        return
 
-    if submitted:
-        try:
-            add_user(name, email)
-            st.success("User added successfully.")
-        except Exception as ex:
-            st.error(f"Error: {ex}")
+    details_df = get_location_details(int(st.session_state.selected_location_id))
+    if details_df.empty:
+        st.warning("Selected location could not be found.")
+        return
 
-    show_df(get_users())
+    loc = details_df.iloc[0]
 
+    st.markdown('<div class="panel">', unsafe_allow_html=True)
+    st.subheader(f"{loc['name']}")
+    st.write(f"Category: {loc['category_name']}")
+    st.write(f"Address: {loc['address']}")
+    st.write(f"Description: {loc['description']}")
+    st.write(f"Average Rating: {loc['avg_rating'] if pd.notna(loc['avg_rating']) else 'No ratings'}")
 
-elif menu == "Add Review":
-    st.markdown('<div class="section-head">Add Review</div>', unsafe_allow_html=True)
+    col_a, col_b = st.columns(2)
+    with col_a:
+        if st.button("Add Review"):
+            if require_login("add a review"):
+                st.session_state.show_add_review_for_selected = True
+    with col_b:
+        if st.button("Add to Favorites"):
+            if require_login("add to favorites"):
+                try:
+                    add_favorite(
+                        int(st.session_state.logged_in_user["user_id"]),
+                        int(st.session_state.selected_location_id),
+                    )
+                    st.success("Added to favorites.")
+                except Exception as ex:
+                    st.error(f"Could not add favorite: {ex}")
 
-    users_df = get_users()
-    locations_df = get_locations()
+    st.markdown("### Reviews")
+    reviews_df = get_reviews_for_location(int(st.session_state.selected_location_id))
+    safe_df(reviews_df, "No reviews yet for this location.")
 
-    if users_df.empty or locations_df.empty:
-        st.warning("Please ensure users and locations are available first.")
-    else:
-        with st.form("add_review_form"):
-            user_id = st.selectbox(
-                "User",
-                users_df["user_id"].tolist(),
-                format_func=lambda uid: f"{uid} - {users_df.loc[users_df['user_id'] == uid, 'name'].iloc[0]}",
-            )
-            location_id = st.selectbox(
-                "Location",
-                locations_df["location_id"].tolist(),
-                format_func=lambda lid: f"{lid} - {locations_df.loc[locations_df['location_id'] == lid, 'name'].iloc[0]}",
-            )
-            rating = st.slider("Rating", min_value=1, max_value=5, value=4)
+    if st.session_state.show_add_review_for_selected and st.session_state.logged_in_user:
+        with st.form("add_review_for_selected"):
+            rating = st.slider("Rating", 1, 5, 4)
             comment = st.text_area("Comment")
             review_date = st.date_input("Date", value=date.today())
-            submitted = st.form_submit_button("Add Review")
+            submitted = st.form_submit_button("Submit Review")
 
         if submitted:
             try:
                 avg_rating = add_review_with_procedure(
-                    int(user_id),
-                    int(location_id),
+                    int(st.session_state.logged_in_user["user_id"]),
+                    int(st.session_state.selected_location_id),
                     int(rating),
                     comment,
                     review_date,
                 )
-                st.success(f"Review added. New average for this location: {avg_rating}")
+                st.success(f"Review added. New average rating: {avg_rating}")
+                st.session_state.show_add_review_for_selected = False
+                st.rerun()
             except Exception as ex:
-                st.error(f"Error: {ex}")
-
-    show_df(get_reviews())
-
-
-elif menu == "View Locations":
-    st.markdown('<div class="section-head">View Locations (Map + Table)</div>', unsafe_allow_html=True)
-    locations_df = _get_locations_for_map()
-    draw_map(locations_df)
-    show_df(locations_df)
-
-    st.markdown("### Quick UPDATE Demo")
-    if not locations_df.empty:
-        with st.form("update_location_desc"):
-            location_id = st.selectbox("Location ID", locations_df["location_id"].tolist())
-            new_desc = st.text_input("New Description")
-            update_submit = st.form_submit_button("Update Description")
-        if update_submit:
-            try:
-                update_location_description(int(location_id), new_desc)
-                _get_locations_for_map.clear()
-                st.success("Location description updated.")
-            except Exception as ex:
-                st.error(f"Error: {ex}")
+                st.error(f"Could not add review: {ex}")
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
-elif menu == "View Reviews":
-    st.markdown('<div class="section-head">View Reviews + SQL Concepts Demo</div>', unsafe_allow_html=True)
+def render_analytics_page() -> None:
+    st.subheader("Map Database")
+    st.caption("Meaningful SQL query outputs using JOIN, GROUP BY, HAVING, and CTE.")
 
-    tabs = st.tabs(
-        [
-            "JOIN",
-            "AGGREGATE",
-            "HAVING",
-            "SUBQUERY",
-            "SET OPS",
-            "VIEW",
-            "ORDER BY + CTE",
-            "BASIC CRUD",
-            "ADVANCED",
-        ]
-    )
+    st.markdown("#### Average Rating Per Location")
+    safe_df(average_rating_per_location())
 
-    with tabs[0]:
-        st.caption("JOIN: reviews with username and location name")
-        show_df(reviews_with_user_and_location())
+    st.markdown("#### Top Rated Locations (HAVING count >= 1)")
+    safe_df(top_rated_locations(min_reviews=1))
 
-    with tabs[1]:
-        st.caption("GROUP BY + aggregate: avg rating and review count")
-        show_df(average_rating_per_location())
+    st.markdown("#### Most Reviewed Locations (CTE)")
+    safe_df(most_reviewed_locations())
 
-    with tabs[2]:
-        st.caption("HAVING: locations with average rating > 4")
-        show_df(locations_with_avg_above_four())
+    st.markdown("#### Users With Most Reviews (JOIN + CTE)")
+    safe_df(users_with_most_reviews())
 
-    with tabs[3]:
-        st.caption("Subquery: locations with highest average rating")
-        show_df(locations_with_highest_rating())
-        st.caption("Subquery: users who reviewed more than average")
-        show_df(users_reviewed_more_than_average())
 
-    with tabs[4]:
-        st.caption("UNION example")
-        show_df(union_example())
-        st.caption("INTERSECT example")
-        show_df(intersect_example())
+def init_state() -> None:
+    defaults = {
+        "logged_in_user": None,
+        "selected_location_id": None,
+        "last_clicked_coords": None,
+        "show_add_category": False,
+        "show_add_location": False,
+        "show_auth": False,
+        "show_add_review_for_selected": False,
+        "current_page": "map",
+    }
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
 
-    with tabs[5]:
-        st.caption("View: location_avg_rating")
-        show_df(location_avg_rating_view())
 
-    with tabs[6]:
-        st.caption("ORDER BY: locations sorted by rating")
-        show_df(locations_sorted_by_rating())
-        st.caption("WITH clause (CTE): average rating calculation")
-        show_df(cte_average_rating())
+init_db()
+init_state()
 
-    with tabs[7]:
-        st.caption("Basic query operations: INSERT / UPDATE / DELETE demo row")
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            if st.button("INSERT demo category"):
-                try:
-                    insert_demo_category()
-                    st.success("Inserted demo category.")
-                except Exception as ex:
-                    st.error(f"Insert error: {ex}")
-        with c2:
-            if st.button("UPDATE demo category"):
-                try:
-                    update_demo_category()
-                    st.success("Updated demo category.")
-                except Exception as ex:
-                    st.error(f"Update error: {ex}")
-        with c3:
-            if st.button("DELETE demo category"):
-                try:
-                    delete_demo_category()
-                    st.success("Deleted demo category.")
-                except Exception as ex:
-                    st.error(f"Delete error: {ex}")
-
-        st.caption("SELECT categories")
-        show_df(get_categories())
-
-        st.caption("Optional DELETE on reviews")
-        reviews_df = get_reviews()
-        if not reviews_df.empty:
-            del_id = st.selectbox("Choose Review ID to delete", reviews_df["review_id"].tolist())
-            if st.button("Delete Selected Review"):
-                try:
-                    delete_review(int(del_id))
-                    st.success("Review deleted.")
-                except Exception as ex:
-                    st.error(f"Delete review error: {ex}")
-
-    with tabs[8]:
-        st.caption("Advanced 1: Stored Procedure/Function style review insert")
-        st.write(
-            "Implemented in `add_review_with_procedure()`: PostgreSQL uses SQL function, SQLite uses equivalent transaction logic."
+title_col, auth_col = st.columns([4, 2])
+with title_col:
+    st.markdown('<div class="title-row"><p class="main-title">Manipal Location & Review Management</p></div>', unsafe_allow_html=True)
+with auth_col:
+    if st.session_state.logged_in_user:
+        st.markdown(
+            f"<p class='muted' style='text-align:right;'>Logged in as {st.session_state.logged_in_user['name']}</p>",
+            unsafe_allow_html=True,
         )
-
-        st.caption("Advanced 2: Trigger")
-        st.write("`trg_log_review_insert` logs every review insert into `ReviewLogs`.")
-
-        st.caption("Advanced 3: Cursor-style iteration")
-        stats = cursor_style_review_stats()
-        st.write(stats)
-
-
-elif menu == "Add to Favorites":
-    st.markdown('<div class="section-head">Add to Favorites</div>', unsafe_allow_html=True)
-
-    users_df = get_users()
-    locations_df = get_locations()
-
-    if users_df.empty or locations_df.empty:
-        st.warning("Please ensure users and locations are available first.")
     else:
-        with st.form("add_favorite_form"):
-            user_id = st.selectbox(
-                "User",
-                users_df["user_id"].tolist(),
-                format_func=lambda uid: f"{uid} - {users_df.loc[users_df['user_id'] == uid, 'name'].iloc[0]}",
-            )
-            location_id = st.selectbox(
-                "Location",
-                locations_df["location_id"].tolist(),
-                format_func=lambda lid: f"{lid} - {locations_df.loc[locations_df['location_id'] == lid, 'name'].iloc[0]}",
-            )
-            submitted = st.form_submit_button("Add to Favorites")
+        st.markdown("<p class='muted' style='text-align:right;'>Not logged in</p>", unsafe_allow_html=True)
 
-        if submitted:
-            try:
-                add_favorite(int(user_id), int(location_id))
-                st.success("Added to favorites.")
-            except Exception as ex:
-                st.error(f"Error: {ex}")
+controls = st.columns(6)
+if controls[0].button("Add Category"):
+    st.session_state.show_add_category = not st.session_state.show_add_category
+if controls[1].button("Add Location"):
+    st.session_state.show_add_location = not st.session_state.show_add_location
+if controls[2].button("Map Database"):
+    st.session_state.current_page = "analytics"
+if controls[3].button("Map View"):
+    st.session_state.current_page = "map"
+if controls[4].button("Load Sample Data"):
+    try:
+        insert_sample_data()
+        st.success("Sample data loaded.")
+        st.rerun()
+    except Exception as ex:
+        st.error(f"Could not load sample data: {ex}")
 
-    show_df(get_favorites())
+if st.session_state.logged_in_user:
+    if controls[5].button("Logout"):
+        st.session_state.logged_in_user = None
+        st.session_state.show_auth = False
+        st.success("Logged out.")
+        st.rerun()
+else:
+    if controls[5].button("Login"):
+        st.session_state.show_auth = not st.session_state.show_auth
 
+render_auth_panel()
+render_add_category()
+render_add_location()
 
-elif menu == "Search/Filter Locations by Category":
-    st.markdown('<div class="section-head">Search/Filter Locations by Category</div>', unsafe_allow_html=True)
-
+if st.session_state.current_page == "analytics":
+    render_analytics_page()
+else:
     categories_df = get_categories()
-    if categories_df.empty:
-        st.info("No categories available.")
-    else:
-        category_id = st.selectbox(
-            "Select Category",
-            categories_df["category_id"].tolist(),
-            format_func=lambda cid: f"{cid} - {categories_df.loc[categories_df['category_id'] == cid, 'category_name'].iloc[0]}",
-        )
+    options = ["All"]
+    category_map: dict[str, int] = {}
+    for _, row in categories_df.iterrows():
+        label = f"{row['category_name']} (ID {int(row['category_id'])})"
+        options.append(label)
+        category_map[label] = int(row["category_id"])
 
-        filtered = search_locations_by_category(int(category_id))
-        show_df(filtered)
-        draw_map(filtered)
+    selected_label = st.selectbox("Filter by Category", options, index=0)
+    selected_category_id = category_map.get(selected_label)
+
+    locations_df = search_locations_by_category(selected_category_id)
+    render_map(locations_df)
+
+    if st.session_state.last_clicked_coords:
+        lat, lng = st.session_state.last_clicked_coords
+        st.caption(f"Last clicked map position: {lat:.6f}, {lng:.6f}")
+
+    render_location_details()
