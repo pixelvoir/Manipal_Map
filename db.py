@@ -1,10 +1,32 @@
 """Database connection and schema setup for the Manipal Location & Review Management System."""
 
 import os
-from sqlalchemy import create_engine, text
+import sqlite3
+
+from sqlalchemy import create_engine, event, text
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///manipal_map.db")
 engine = create_engine(DATABASE_URL, future=True)
+
+
+def _sqlite_rating_band(value: float | None) -> str:
+    if value is None:
+        return "Unrated"
+    if value >= 4.5:
+        return "Excellent"
+    if value >= 4.0:
+        return "Strong"
+    if value >= 3.0:
+        return "Average"
+    return "Needs Attention"
+
+
+@event.listens_for(engine, "connect")
+def _configure_sqlite_connection(dbapi_connection, _connection_record) -> None:
+    """Enable SQLite-specific helpers on every connection."""
+    if isinstance(dbapi_connection, sqlite3.Connection):
+        dbapi_connection.execute("PRAGMA foreign_keys = ON")
+        dbapi_connection.create_function("rating_band", 1, _sqlite_rating_band)
 
 
 def init_db() -> None:
@@ -153,10 +175,59 @@ def init_db() -> None:
             )
         )
 
+        conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS DeletedLocationAudit (
+                    audit_id INTEGER PRIMARY KEY,
+                    location_id INTEGER NOT NULL,
+                    location_name VARCHAR(150) NOT NULL,
+                    deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    review_count INTEGER NOT NULL DEFAULT 0,
+                    image_count INTEGER NOT NULL DEFAULT 0,
+                    favorite_count INTEGER NOT NULL DEFAULT 0,
+                    deletion_mode VARCHAR(40) NOT NULL DEFAULT 'trigger_archive'
+                )
+                """
+            )
+        )
+
         # ------------------------------------------------------------------
         # TRIGGERS (SQLite only native implementation)
         # ------------------------------------------------------------------
-        
+
+        conn.execute(text("DROP TRIGGER IF EXISTS trg_validate_review_insert"))
+        conn.execute(
+            text(
+                """
+                CREATE TRIGGER trg_validate_review_insert
+                BEFORE INSERT ON Reviews
+                BEGIN
+                    SELECT CASE
+                        WHEN TRIM(COALESCE(NEW.comment, '')) = '' THEN
+                            RAISE(ABORT, 'Review comment cannot be empty.')
+                    END;
+                END
+                """
+            )
+        )
+
+        conn.execute(text("DROP TRIGGER IF EXISTS trg_validate_review_update"))
+        conn.execute(
+            text(
+                """
+                CREATE TRIGGER trg_validate_review_update
+                BEFORE UPDATE OF comment ON Reviews
+                BEGIN
+                    SELECT CASE
+                        WHEN TRIM(COALESCE(NEW.comment, '')) = '' THEN
+                            RAISE(ABORT, 'Review comment cannot be empty.')
+                    END;
+                END
+                """
+            )
+        )
+
         # TRIGGER 1: AFTER INSERT on Reviews — audit log
         conn.execute(text("DROP TRIGGER IF EXISTS trg_log_review_insert"))
         conn.execute(
@@ -187,8 +258,36 @@ def init_db() -> None:
             )
         )
 
+        conn.execute(text("DROP TRIGGER IF EXISTS trg_archive_location_delete"))
+        conn.execute(
+            text(
+                """
+                CREATE TRIGGER trg_archive_location_delete
+                BEFORE DELETE ON Locations
+                BEGIN
+                    INSERT INTO DeletedLocationAudit(
+                        location_id,
+                        location_name,
+                        review_count,
+                        image_count,
+                        favorite_count,
+                        deletion_mode
+                    )
+                    VALUES (
+                        OLD.location_id,
+                        OLD.name,
+                        (SELECT COUNT(*) FROM Reviews WHERE location_id = OLD.location_id),
+                        (SELECT COUNT(*) FROM Images WHERE location_id = OLD.location_id),
+                        (SELECT COUNT(*) FROM Favorites WHERE location_id = OLD.location_id),
+                        'trigger_archive'
+                    );
+                END
+                """
+            )
+        )
+
         # ------------------------------------------------------------------
-        # VIEW
+        # VIEWS
         # ------------------------------------------------------------------
         conn.execute(text("DROP VIEW IF EXISTS location_avg_rating"))
         conn.execute(
@@ -203,6 +302,27 @@ def init_db() -> None:
                 FROM Locations l
                 LEFT JOIN Reviews r ON l.location_id = r.location_id
                 GROUP BY l.location_id, l.name
+                """
+            )
+        )
+
+        conn.execute(text("DROP VIEW IF EXISTS category_activity_summary"))
+        conn.execute(
+            text(
+                """
+                CREATE VIEW category_activity_summary AS
+                SELECT
+                    c.category_id,
+                    c.category_name,
+                    COUNT(DISTINCT l.location_id) AS location_count,
+                    COUNT(DISTINCT CASE WHEN r.review_id IS NOT NULL THEN l.location_id END) AS reviewed_locations,
+                    ROUND(AVG(r.rating), 2) AS category_avg_rating,
+                    COUNT(CASE WHEN r.rating = 5 THEN 1 END) AS five_star_reviews,
+                    rating_band(ROUND(AVG(r.rating), 2)) AS category_band
+                FROM Categories c
+                LEFT JOIN Locations l ON c.category_id = l.category_id
+                LEFT JOIN Reviews r ON l.location_id = r.location_id
+                GROUP BY c.category_id, c.category_name
                 """
             )
         )

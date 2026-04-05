@@ -127,14 +127,8 @@ def update_location(
 
 
 def delete_location(location_id: int) -> None:
-    """Manually cleans up location-referenced items then drops the location.
-    Required explicitly if ON DELETE CASCADE is disabled or engine drops logic."""
+    """Delete a location and rely on SQLite cascade + archive trigger behavior."""
     with engine.begin() as conn:
-        conn.execute(text("DELETE FROM ReviewLogs WHERE review_id IN (SELECT review_id FROM Reviews WHERE location_id = :lid)"), {"lid": location_id})
-        conn.execute(text("DELETE FROM Reviews WHERE location_id = :lid"), {"lid": location_id})
-        conn.execute(text("DELETE FROM Images WHERE location_id = :lid"), {"lid": location_id})
-        conn.execute(text("DELETE FROM Favorites WHERE location_id = :lid"), {"lid": location_id})
-        conn.execute(text("DELETE FROM LocationStatus WHERE location_id = :lid"), {"lid": location_id})
         conn.execute(text("DELETE FROM Locations WHERE location_id = :lid"), {"lid": location_id})
 
 
@@ -371,6 +365,44 @@ def users_with_most_reviews() -> pd.DataFrame:
         """
     )
 
+
+def get_category_activity_summary() -> pd.DataFrame:
+    return _to_df(
+        """
+        SELECT
+            category_id,
+            category_name,
+            location_count,
+            reviewed_locations,
+            category_avg_rating,
+            five_star_reviews,
+            category_band
+        FROM category_activity_summary
+        ORDER BY
+            CASE WHEN category_avg_rating IS NULL THEN 1 ELSE 0 END,
+            category_avg_rating DESC,
+            category_name
+        """
+    )
+
+
+def location_rating_bands() -> pd.DataFrame:
+    return _to_df(
+        """
+        SELECT
+            location_id,
+            location_name,
+            avg_rating,
+            review_count,
+            rating_band(avg_rating) AS rating_band
+        FROM location_avg_rating
+        ORDER BY
+            CASE WHEN avg_rating IS NULL THEN 1 ELSE 0 END,
+            avg_rating DESC,
+            location_name
+        """
+    )
+
 # -----------------------------
 # SET OPERATIONS
 # -----------------------------
@@ -536,6 +568,67 @@ def demo_savepoint_transaction(review_id: int, new_rating: int) -> dict:
         }
 
 # -----------------------------
+# RICHER TRANSACTION WORKFLOW
+# -----------------------------
+
+def archive_delete_location_transaction(location_id: int) -> dict[str, Any]:
+    """Archive and delete a location inside an explicit SAVEPOINT workflow."""
+    with engine.begin() as conn:
+        row = conn.execute(
+            text(
+                """
+                SELECT
+                    l.location_id,
+                    l.name,
+                    (SELECT COUNT(*) FROM Reviews WHERE location_id = l.location_id) AS review_count,
+                    (SELECT COUNT(*) FROM Images WHERE location_id = l.location_id) AS image_count,
+                    (SELECT COUNT(*) FROM Favorites WHERE location_id = l.location_id) AS favorite_count
+                FROM Locations l
+                WHERE l.location_id = :lid
+                """
+            ),
+            {"lid": location_id},
+        ).mappings().first()
+
+        if row is None:
+            return {"status": "error", "message": f"Location {location_id} not found."}
+
+        conn.execute(text("SAVEPOINT sp_location_archive_delete"))
+        try:
+            conn.execute(text("DELETE FROM Locations WHERE location_id = :lid"), {"lid": location_id})
+            conn.execute(text("RELEASE SAVEPOINT sp_location_archive_delete"))
+        except Exception as ex:
+            conn.execute(text("ROLLBACK TO SAVEPOINT sp_location_archive_delete"))
+            conn.execute(text("RELEASE SAVEPOINT sp_location_archive_delete"))
+            return {"status": "rolled_back", "message": f"Delete failed and was rolled back: {ex}"}
+
+        audit_row = conn.execute(
+            text(
+                """
+                SELECT audit_id, location_name, deleted_at, review_count, image_count, favorite_count, deletion_mode
+                FROM DeletedLocationAudit
+                WHERE location_id = :lid
+                ORDER BY audit_id DESC
+                LIMIT 1
+                """
+            ),
+            {"lid": location_id},
+        ).mappings().first()
+
+        if audit_row is None:
+            return {"status": "error", "message": "Delete completed but no archive record was captured."}
+
+        return {
+            "status": "committed",
+            "message": (
+                f"Deleted {audit_row['location_name']} and archived counts: "
+                f"{audit_row['review_count']} reviews, {audit_row['image_count']} images, "
+                f"{audit_row['favorite_count']} favorites."
+            ),
+        }
+
+
+# -----------------------------
 # CURSOR-BASED ROUTINE (Python-level cursor over raw SQL)
 # -----------------------------
 
@@ -580,8 +673,68 @@ def flag_low_rated_locations(threshold: float = 3.5) -> pd.DataFrame:
     )
 
 
+def parameterized_category_cursor(category_id: int, threshold: float = 4.0) -> pd.DataFrame:
+    """Parameterized cursor analogue scoped to one category."""
+    with engine.connect() as conn:
+        cursor_result = conn.execute(
+            text(
+                """
+                SELECT
+                    l.location_id,
+                    l.name AS location_name,
+                    c.category_name,
+                    ROUND(AVG(r.rating), 2) AS avg_rating,
+                    COUNT(r.review_id) AS review_count
+                FROM Locations l
+                JOIN Categories c ON l.category_id = c.category_id
+                LEFT JOIN Reviews r ON l.location_id = r.location_id
+                WHERE l.category_id = :category_id
+                GROUP BY l.location_id, l.name, c.category_name
+                ORDER BY l.name
+                """
+            ),
+            {"category_id": category_id},
+        )
+        rows = cursor_result.fetchall()
+
+    results: list[dict[str, Any]] = []
+    for row in rows:
+        avg_rating = float(row[3]) if row[3] is not None else None
+        classification = "highlight" if avg_rating is not None and avg_rating >= threshold else "watch"
+        results.append(
+            {
+                "location_id": row[0],
+                "location_name": row[1],
+                "category_name": row[2],
+                "avg_rating": avg_rating,
+                "review_count": int(row[4]),
+                "cursor_decision": classification,
+            }
+        )
+
+    return pd.DataFrame(results)
+
+
 def get_review_logs() -> pd.DataFrame:
     return _to_df("SELECT rl.log_id, rl.review_id, rl.action, rl.old_rating, rl.new_rating, rl.log_time FROM ReviewLogs rl ORDER BY rl.log_time DESC, rl.log_id DESC")
 
 def get_location_status() -> pd.DataFrame:
     return _to_df("SELECT ls.location_id, l.name AS location_name, ls.status, ls.last_updated FROM LocationStatus ls JOIN Locations l ON ls.location_id = l.location_id ORDER BY ls.status DESC, l.name")
+
+
+def get_deleted_location_audit() -> pd.DataFrame:
+    return _to_df(
+        """
+        SELECT
+            audit_id,
+            location_id,
+            location_name,
+            deleted_at,
+            review_count,
+            image_count,
+            favorite_count,
+            deletion_mode
+        FROM DeletedLocationAudit
+        ORDER BY deleted_at DESC, audit_id DESC
+        """
+    )
