@@ -4,18 +4,14 @@ from __future__ import annotations
 
 from sqlalchemy import text
 
-from db import engine, get_backend_name, init_db
+from db import engine, init_db
 
 
 def _bulk_insert(table: str, columns: list[str], rows: list[dict]) -> None:
-    backend = get_backend_name()
     col_list = ", ".join(columns)
     val_list = ", ".join([f":{c}" for c in columns])
 
-    if backend == "sqlite":
-        sql = f"INSERT OR IGNORE INTO {table} ({col_list}) VALUES ({val_list})"
-    else:
-        sql = f"INSERT INTO {table} ({col_list}) VALUES ({val_list}) ON CONFLICT DO NOTHING"
+    sql = f"INSERT OR IGNORE INTO {table} ({col_list}) VALUES ({val_list})"
 
     with engine.begin() as conn:
         conn.execute(text(sql), rows)
