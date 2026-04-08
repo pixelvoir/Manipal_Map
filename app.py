@@ -64,408 +64,369 @@ st.set_page_config(page_title="Manipal Atlas", layout="wide")
 st.markdown(
     """
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap');
 
     :root {
-        --bg-main: #eef2ee;
-        --bg-panel: rgba(255, 255, 255, 0.86);
-        --line-soft: rgba(27, 56, 45, 0.12);
-        --text-main: #10281f;
-        --text-soft: #5d6f67;
-        --accent: #1f6a52;
-        --accent-strong: #103b2f;
-        --shadow-soft: 0 20px 50px rgba(17, 31, 25, 0.08);
+        --bg:            #F4F5F2;
+        --surface:       #FFFFFF;
+        --surface-alt:   #F9FAF8;
+        --border:        #E0E5DF;
+        --border-strong: #C8D0C6;
+        --text:          #16201A;
+        --text-2:        #4A5750;
+        --text-3:        #8A9590;
+        --accent:        #1B6840;
+        --accent-mid:    #2E8A5A;
+        --accent-pale:   #EAF3EE;
+        --accent-line:   #C6DDD0;
+        --shadow-sm:     0 1px 3px rgba(0,0,0,0.07),0 1px 2px rgba(0,0,0,0.04);
+        --shadow-md:     0 4px 12px rgba(0,0,0,0.08),0 2px 4px rgba(0,0,0,0.04);
+        --r-sm:  6px;
+        --r-md:  10px;
+        --r-lg:  14px;
     }
+
+    * { box-sizing: border-box; }
+
     .stApp {
-        background:
-            radial-gradient(circle at top left, rgba(64, 125, 99, 0.18), transparent 24%),
-            radial-gradient(circle at top right, rgba(22, 73, 57, 0.14), transparent 22%),
-            linear-gradient(180deg, #f8fbf9 0%, var(--bg-main) 100%);
-        color: var(--text-main);
-        font-family: "Instrument Sans", sans-serif;
-    }
-    .stApp::before {
-        content: "";
-        position: fixed;
-        inset: 0;
-        background-image:
-            linear-gradient(rgba(16, 40, 31, 0.035) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(16, 40, 31, 0.035) 1px, transparent 1px);
-        background-size: 32px 32px;
-        opacity: 0.32;
-        pointer-events: none;
-        z-index: 0;
+        background: var(--bg);
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        color: var(--text);
+        font-size: 14px;
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
     }
     section.main > div.block-container {
-        padding-top: 1.6rem;
+        padding-top: 1.25rem;
         padding-bottom: 2rem;
-        max-width: 1500px;
-        position: relative;
-        z-index: 1;
+        max-width: 1480px;
     }
-    #MainMenu,
-    footer,
-    header[data-testid="stHeader"] {
-        visibility: hidden;
+    #MainMenu, footer, header[data-testid="stHeader"] { visibility: hidden; }
+
+    /* ── Sidebar ─────────────────────────────────────────── */
+    [data-testid="stSidebar"] {
+        background: var(--surface) !important;
+        border-right: 1px solid var(--border) !important;
     }
-    .hero-banner,
-    .review-shell {
-        border: 1px solid var(--line-soft);
-        background: var(--bg-panel);
-        box-shadow: var(--shadow-soft);
-        backdrop-filter: blur(20px);
+    [data-testid="stSidebar"] > div { padding-top: 0.75rem; }
+
+    /* ── Page Banner ─────────────────────────────────────── */
+    .hero-banner {
+        display: block;
+        padding: 0.9rem 1.2rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-left: 3px solid var(--accent);
+        border-radius: var(--r-md);
+        margin-bottom: 1rem;
+        box-shadow: var(--shadow-sm);
     }
-    .app-kicker,
-    .panel-kicker {
-        text-transform: uppercase;
-        letter-spacing: 0.18em;
-        font-size: 0.72rem;
+    .panel-kicker, .app-kicker {
+        font-size: 0.67rem;
         font-weight: 700;
         color: var(--accent);
-        margin-bottom: 0.5rem;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        margin-bottom: 0.2rem;
     }
-    .main-title {
-        font-family: "Space Grotesk", sans-serif;
-        font-size: 2.35rem;
+    .hero-title, .panel-title {
+        font-size: 1.2rem;
         font-weight: 700;
+        color: var(--text);
         margin: 0;
-        letter-spacing: -0.04em;
-        color: var(--text-main);
+        letter-spacing: -0.01em;
+        line-height: 1.3;
+        font-family: 'Inter', sans-serif;
     }
-    .title-support {
-        max-width: 40rem;
-        color: var(--text-soft);
-        margin-top: 0.45rem;
-        margin-bottom: 0;
-        line-height: 1.55;
-    }
-    .status-text {
-        color: var(--text-soft);
-        text-align: right;
-        margin: 0.45rem 0 0;
-        font-size: 0.95rem;
-    }
-    .status-pill {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 999px;
-        padding: 0.5rem 0.9rem;
-        border: 1px solid rgba(31, 106, 82, 0.18);
-        background: rgba(255, 255, 255, 0.84);
-        color: var(--accent-strong);
+    .hero-copy, .panel-copy, .muted-copy {
         font-size: 0.82rem;
-        font-weight: 700;
-    }
-    .nav-title {
-        font-family: "Space Grotesk", sans-serif;
-        font-size: 1.15rem;
-        margin: 0 0 0.35rem;
-        color: var(--text-main);
-    }
-    .nav-copy {
-        color: var(--text-soft);
-        font-size: 0.95rem;
-        line-height: 1.5;
-        margin-bottom: 1.1rem;
-    }
-    .hero-banner {
-        border-radius: 24px;
-        padding: 1.05rem 1.15rem;
-        margin-bottom: 1rem;
-    }
-    .hero-banner {
-        background:
-            linear-gradient(135deg, rgba(255, 255, 255, 0.94) 0%, rgba(236, 244, 239, 0.9) 100%);
-    }
-    .hero-title,
-    .panel-title {
-        font-family: "Space Grotesk", sans-serif;
-        font-size: 1.55rem;
-        margin: 0;
-        color: var(--text-main);
-        letter-spacing: -0.03em;
-    }
-    .hero-copy,
-    .panel-copy,
-    .muted-copy {
-        color: var(--text-soft);
+        color: var(--text-2);
+        margin: 0.3rem 0 0;
         line-height: 1.55;
-        margin-top: 0.45rem;
     }
     .hero-meta {
         display: flex;
         flex-wrap: wrap;
-        gap: 0.55rem;
-        margin-top: 0.9rem;
+        gap: 0.4rem;
+        margin-top: 0.6rem;
     }
     .soft-chip {
         display: inline-flex;
         align-items: center;
-        gap: 0.35rem;
-        border-radius: 999px;
-        border: 1px solid rgba(31, 106, 82, 0.14);
-        background: rgba(255, 255, 255, 0.84);
-        padding: 0.38rem 0.72rem;
-        color: var(--accent-strong);
-        font-size: 0.82rem;
+        height: 22px;
+        padding: 0 0.55rem;
+        background: var(--accent-pale);
+        border: 1px solid var(--accent-line);
+        border-radius: 4px;
+        font-size: 0.72rem;
         font-weight: 600;
+        color: var(--accent);
     }
+
+    /* ── Metric Cards ────────────────────────────────────── */
     .metric-shell {
-        border-radius: 22px;
-        border: 1px solid var(--line-soft);
-        background: rgba(255, 255, 255, 0.76);
-        padding: 1rem;
-        box-shadow: 0 12px 28px rgba(17, 31, 25, 0.05);
-        margin-bottom: 1rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-top: 2px solid var(--accent);
+        border-radius: var(--r-md);
+        padding: 0.8rem 1rem;
+        box-shadow: var(--shadow-sm);
+        margin-bottom: 0.75rem;
     }
     .metric-label {
-        color: var(--text-soft);
-        text-transform: uppercase;
-        letter-spacing: 0.16em;
-        font-size: 0.72rem;
+        font-size: 0.67rem;
         font-weight: 700;
-        margin-bottom: 0.45rem;
+        color: var(--text-3);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        margin-bottom: 0.25rem;
     }
     .metric-value {
-        font-family: "Space Grotesk", sans-serif;
-        font-size: 2rem;
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--text);
         line-height: 1;
-        color: var(--text-main);
         margin: 0;
+        letter-spacing: -0.02em;
+        font-family: 'Inter', sans-serif;
     }
     .metric-detail {
-        color: var(--text-soft);
-        margin-top: 0.4rem;
-        margin-bottom: 0;
-        font-size: 0.92rem;
+        font-size: 0.78rem;
+        color: var(--text-2);
+        margin-top: 0.3rem;
     }
-    .map-caption,
-    .section-label {
-        color: var(--text-soft);
-        font-size: 0.9rem;
-        margin-bottom: 0.7rem;
+
+    /* ── Section headers ─────────────────────────────────── */
+    .surface-title {
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: var(--text);
+        margin: 0;
+        font-family: 'Inter', sans-serif;
     }
+    .surface-copy {
+        font-size: 0.8rem;
+        color: var(--text-2);
+        margin: 0.2rem 0 0;
+        line-height: 1.5;
+    }
+    .panel-divider {
+        height: 1px;
+        border: none;
+        background: var(--border);
+        margin: 0.9rem 0;
+    }
+    .flat-section { margin-bottom: 0.9rem; }
+    .surface-head { margin-bottom: 0.75rem; }
+    .map-caption, .section-label {
+        font-size: 0.78rem;
+        color: var(--text-3);
+        margin-bottom: 0.5rem;
+    }
+
+    /* ── Inspector / location detail ────────────────────── */
     .inspector-title {
-        font-family: "Space Grotesk", sans-serif;
-        font-size: 1.65rem;
-        margin: 0.15rem 0 0;
-        color: var(--text-main);
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: var(--text);
+        margin: 0.1rem 0 0;
+        line-height: 1.3;
+        font-family: 'Inter', sans-serif;
     }
     .inspector-meta {
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 0.75rem;
-        margin-top: 1rem;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.5rem;
+        margin-top: 0.75rem;
     }
     .meta-block {
-        border-radius: 18px;
-        padding: 0.85rem 0.95rem;
-        background: rgba(245, 249, 246, 0.92);
-        border: 1px solid rgba(27, 56, 45, 0.08);
+        background: var(--surface-alt);
+        border: 1px solid var(--border);
+        border-radius: var(--r-sm);
+        padding: 0.6rem 0.75rem;
     }
     .meta-label {
-        color: var(--text-soft);
-        font-size: 0.78rem;
+        font-size: 0.64rem;
+        font-weight: 700;
+        color: var(--text-3);
         text-transform: uppercase;
-        letter-spacing: 0.14em;
-        margin-bottom: 0.35rem;
+        letter-spacing: 0.1em;
+        margin-bottom: 0.2rem;
     }
     .meta-value {
-        color: var(--text-main);
-        font-weight: 700;
-        line-height: 1.45;
+        font-size: 0.84rem;
+        font-weight: 600;
+        color: var(--text);
+        line-height: 1.4;
     }
+
+    /* ── Empty states ────────────────────────────────────── */
     .empty-shell {
-        border-radius: 24px;
-        padding: 1.4rem 1.2rem;
-        border: 1px dashed rgba(27, 56, 45, 0.16);
-        background: rgba(255, 255, 255, 0.52);
+        background: var(--surface);
+        border: 1px dashed var(--border-strong);
+        border-radius: var(--r-md);
+        padding: 1.25rem;
+        text-align: center;
     }
     .empty-title {
-        font-family: "Space Grotesk", sans-serif;
-        color: var(--text-main);
-        font-size: 1.3rem;
-        margin-bottom: 0.45rem;
+        font-size: 0.92rem;
+        font-weight: 600;
+        color: var(--text);
+        margin-bottom: 0.3rem;
     }
     .empty-copy {
-        color: var(--text-soft);
-        line-height: 1.6;
-        margin-bottom: 0.9rem;
+        font-size: 0.82rem;
+        color: var(--text-2);
+        line-height: 1.5;
+        margin-bottom: 0.75rem;
     }
+
+    /* ── Review cards ────────────────────────────────────── */
     .review-shell {
-        border-radius: 20px;
-        padding: 0.9rem 1rem;
-        margin-bottom: 0.85rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--r-md);
+        padding: 0.75rem 0.9rem;
+        margin-bottom: 0.6rem;
+        box-shadow: var(--shadow-sm);
     }
     .review-header {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 0.7rem;
-        margin-bottom: 0.35rem;
-    }
-    .review-author {
-        color: var(--text-main);
-        font-weight: 700;
-    }
-    .review-date {
-        color: var(--text-soft);
-        font-size: 0.9rem;
-    }
-    .review-comment {
-        color: var(--text-main);
-        margin: 0.35rem 0 0;
-        line-height: 1.55;
-    }
-    .panel-divider {
-        height: 1px;
-        border: 0;
-        background: rgba(27, 56, 45, 0.08);
-        margin: 1rem 0;
-    }
-    .flat-section {
-        margin-bottom: 1.1rem;
-    }
-    .surface-head {
-        margin-bottom: 0.9rem;
-    }
-    .surface-title {
-        font-family: "Space Grotesk", sans-serif;
-        font-size: 1.2rem;
-        margin: 0;
-        color: var(--text-main);
-    }
-    .surface-copy {
-        color: var(--text-soft);
-        line-height: 1.55;
-        margin: 0.35rem 0 0;
-    }
-    .auth-hero {
-        max-width: 44rem;
-        margin: 0 auto 1.5rem;
-        text-align: center;
-    }
-    .auth-title {
-        font-family: "Space Grotesk", sans-serif;
-        font-size: 2.2rem;
-        line-height: 1.05;
-        margin: 0;
-        color: var(--text-main);
-    }
-    .auth-copy {
-        color: var(--text-soft);
-        max-width: 34rem;
-        margin: 0.8rem auto 0;
-        line-height: 1.6;
-    }
-    .auth-feature-list {
-        margin: 1rem 0 0;
-        padding-left: 1rem;
-        color: var(--text-soft);
-        line-height: 1.7;
-    }
-    .auth-feature-list li {
-        margin-bottom: 0.45rem;
-    }
-    .auth-panel {
-        padding: 1.2rem 1.1rem;
-        border: 1px solid rgba(27, 56, 45, 0.1);
-        border-radius: 22px;
-        background: rgba(255, 255, 255, 0.66);
-        box-shadow: 0 18px 40px rgba(17, 31, 25, 0.06);
-        min-height: 100%;
-    }
-    .auth-panel-title {
-        font-family: "Space Grotesk", sans-serif;
-        font-size: 1.35rem;
-        margin: 0;
-        color: var(--text-main);
-    }
-    .auth-panel-copy {
-        color: var(--text-soft);
-        margin: 0.45rem 0 1rem;
-        line-height: 1.55;
-    }
-    .stTabs [data-baseweb="tab-list"] {
         gap: 0.5rem;
+        margin-bottom: 0.3rem;
+    }
+    .review-author { font-weight: 600; font-size: 0.86rem; color: var(--text); }
+    .review-date   { font-size: 0.78rem; color: var(--text-3); }
+    .review-comment { font-size: 0.84rem; color: var(--text-2); margin: 0.25rem 0 0; line-height: 1.5; }
+
+    /* ── Auth pages ──────────────────────────────────────── */
+    .auth-hero, .auth-title, .auth-copy { display: none; }
+    .auth-panel {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--r-lg);
+        padding: 1.25rem;
+        box-shadow: var(--shadow-sm);
+    }
+    .auth-panel-title { font-size: 1rem; font-weight: 700; color: var(--text); margin: 0; }
+    .auth-panel-copy  { font-size: 0.82rem; color: var(--text-2); margin: 0.35rem 0 0.9rem; }
+    .auth-feature-list {
+        padding-left: 1.1rem;
+        color: var(--text-2);
+        font-size: 0.84rem;
+        line-height: 1.7;
+        margin: 0.75rem 0 0;
+    }
+    .auth-feature-list li { margin-bottom: 0.3rem; }
+
+    /* ── Sidebar text ────────────────────────────────────── */
+    .nav-title {
+        font-size: 0.67rem;
+        font-weight: 700;
+        color: var(--text-3);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        margin: 0 0 0.3rem;
+    }
+    .nav-copy { font-size: 0.82rem; color: var(--text-2); line-height: 1.5; margin-bottom: 0.9rem; }
+
+    /* ── Tabs ────────────────────────────────────────────── */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 0;
+        border-bottom: 1px solid var(--border);
         margin-bottom: 1rem;
+        background: transparent;
     }
     .stTabs [data-baseweb="tab"] {
-        background: rgba(255, 255, 255, 0.78);
-        border: 1px solid rgba(27, 56, 45, 0.1);
-        border-radius: 999px;
-        padding: 0.5rem 0.9rem;
-        color: var(--text-soft);
-        font-weight: 600;
+        background: transparent;
+        border: none;
+        border-bottom: 2px solid transparent;
+        border-radius: 0;
+        padding: 0.5rem 0.85rem;
+        font-size: 0.84rem;
+        font-weight: 500;
+        color: var(--text-2);
+        margin-bottom: -1px;
+        font-family: 'Inter', sans-serif;
     }
     .stTabs [aria-selected="true"] {
-        background: linear-gradient(135deg, var(--accent-strong) 0%, var(--accent) 100%);
-        color: #ffffff !important;
-        border-color: transparent;
+        background: transparent !important;
+        border-bottom: 2px solid var(--accent) !important;
+        color: var(--text) !important;
+        font-weight: 600;
     }
+
+    /* ── Expanders ───────────────────────────────────────── */
     .stExpander {
-        border: 1px solid rgba(27, 56, 45, 0.1) !important;
-        border-radius: 18px !important;
-        background: rgba(255, 255, 255, 0.74) !important;
+        border: 1px solid var(--border) !important;
+        border-radius: var(--r-md) !important;
+        background: var(--surface) !important;
+        box-shadow: none !important;
     }
-    .stAlert {
-        border-radius: 18px;
-    }
-    .stDataFrame,
-    div[data-testid="stTable"] {
-        border-radius: 18px;
+
+    /* ── DataFrames ──────────────────────────────────────── */
+    .stDataFrame, div[data-testid="stTable"] {
+        border-radius: var(--r-md);
         overflow: hidden;
-        border: 1px solid rgba(27, 56, 45, 0.1);
+        border: 1px solid var(--border);
     }
+
+    /* ── Map iframe ──────────────────────────────────────── */
     .element-container iframe {
-        border-radius: 22px !important;
-        border: 1px solid rgba(27, 56, 45, 0.12) !important;
-        box-shadow: 0 24px 50px rgba(17, 31, 25, 0.14);
+        border-radius: var(--r-md) !important;
+        border: 1px solid var(--border) !important;
+        box-shadow: var(--shadow-md);
     }
+
+    /* ── Buttons ─────────────────────────────────────────── */
     div[data-testid="stButton"] > button,
     div[data-testid="stFormSubmitButton"] > button {
-        min-height: 2.9rem;
-        border-radius: 16px;
-        border: 1px solid rgba(16, 59, 47, 0.12);
-        background: rgba(255, 255, 255, 0.82);
-        color: var(--text-main);
-        font-weight: 700;
-        letter-spacing: 0.01em;
-        box-shadow: 0 12px 24px rgba(17, 31, 25, 0.08);
-        transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+        background: var(--surface);
+        border: 1px solid var(--border-strong);
+        border-radius: var(--r-sm);
+        color: var(--text);
+        font-family: 'Inter', sans-serif;
+        font-size: 0.84rem;
+        font-weight: 600;
+        min-height: 2.35rem;
+        box-shadow: var(--shadow-sm);
+        transition: background 0.1s, border-color 0.1s;
+        letter-spacing: 0;
     }
     div[data-testid="stButton"] > button:hover,
     div[data-testid="stFormSubmitButton"] > button:hover {
-        transform: translateY(-1px);
-        border-color: rgba(16, 59, 47, 0.24);
-        box-shadow: 0 16px 28px rgba(17, 31, 25, 0.12);
+        background: var(--surface-alt);
+        border-color: var(--accent);
     }
     div[data-testid="stButton"] > button[kind="primary"],
     div[data-testid="stFormSubmitButton"] > button[kind="primary"] {
-        background: linear-gradient(135deg, var(--accent-strong) 0%, var(--accent) 100%);
-        color: #ffffff;
-        border-color: rgba(16, 59, 47, 0.1);
+        background: var(--accent);
+        color: #fff;
+        border-color: var(--accent);
+    }
+    div[data-testid="stButton"] > button[kind="primary"]:hover,
+    div[data-testid="stFormSubmitButton"] > button[kind="primary"]:hover {
+        background: var(--accent-mid);
+        border-color: var(--accent-mid);
     }
     div[data-testid="stButton"] > button p,
-    div[data-testid="stFormSubmitButton"] > button p {
-        font-size: 0.95rem;
-    }
+    div[data-testid="stFormSubmitButton"] > button p { font-size: 0.84rem; }
+
+    /* ── Form inputs ─────────────────────────────────────── */
     div[data-baseweb="select"] > div,
     div[data-baseweb="input"] > div,
     div[data-baseweb="base-input"] > div,
     .stTextArea textarea,
     .stNumberInput input {
-        border-radius: 16px !important;
-        border: 1px solid rgba(27, 56, 45, 0.12) !important;
-        background: rgba(255, 255, 255, 0.92) !important;
+        border-radius: var(--r-sm) !important;
+        border: 1px solid var(--border-strong) !important;
+        background: var(--surface) !important;
         box-shadow: none !important;
-        color: var(--text-main) !important;
-    }
-    .stTextInput input,
-    .stNumberInput input,
-    .stTextArea textarea {
-        background: rgba(255, 255, 255, 0.92) !important;
+        color: var(--text) !important;
+        font-family: 'Inter', sans-serif !important;
+        font-size: 0.84rem !important;
     }
     .stTextInput input,
     .stNumberInput input,
@@ -476,10 +437,11 @@ st.markdown(
     div[data-baseweb="select"] span,
     div[data-baseweb="select"] div,
     div[data-baseweb="select"] * {
-        color: var(--text-main) !important;
-        -webkit-text-fill-color: var(--text-main) !important;
-        caret-color: var(--text-main) !important;
+        color: var(--text) !important;
+        -webkit-text-fill-color: var(--text) !important;
+        caret-color: var(--accent) !important;
         opacity: 1 !important;
+        background: var(--surface) !important;
     }
     .stTextInput input::placeholder,
     .stNumberInput input::placeholder,
@@ -487,45 +449,53 @@ st.markdown(
     div[data-baseweb="input"] input::placeholder,
     div[data-baseweb="base-input"] input::placeholder,
     div[data-baseweb="select"] input::placeholder {
-        color: #8ea099 !important;
+        color: var(--text-3) !important;
         opacity: 1 !important;
     }
+    div[data-baseweb="select"] svg, .stNumberInput button svg { fill: var(--text-2) !important; }
+    .stNumberInput button { background: transparent !important; border: 0 !important; box-shadow: none !important; }
+    .stSelectbox div[data-baseweb="select"] > div,
+    .stNumberInput div[data-baseweb="base-input"] > div,
+    .stTextInput div[data-baseweb="input"] > div { min-height: 2.5rem; }
+
     label[data-testid="stWidgetLabel"] p,
     .stSelectbox label p,
     .stNumberInput label p,
     .stTextInput label p,
     .stTextArea label p,
     .stSlider label p {
-        color: var(--text-main) !important;
+        color: var(--text) !important;
+        font-size: 0.82rem !important;
         font-weight: 600 !important;
+        font-family: 'Inter', sans-serif !important;
     }
-    div[data-baseweb="select"] svg,
-    .stNumberInput button svg {
-        fill: var(--text-main) !important;
-    }
-    .stNumberInput button {
-        background: transparent !important;
-        border: 0 !important;
-        box-shadow: none !important;
-    }
-    .stSelectbox div[data-baseweb="select"] > div,
-    .stNumberInput div[data-baseweb="base-input"] > div,
-    .stTextInput div[data-baseweb="input"] > div {
-        min-height: 3.2rem;
-    }
+
+    /* ── Misc ────────────────────────────────────────────── */
     .stFileUploader {
-        border-radius: 18px;
-        background: rgba(255, 255, 255, 0.7);
-        border: 1px dashed rgba(27, 56, 45, 0.18);
+        border-radius: var(--r-md);
+        background: var(--surface);
+        border: 1px dashed var(--border-strong);
         padding: 0.2rem;
     }
+    .stAlert { border-radius: var(--r-md); }
+
+    /* status-pill kept for compatibility */
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        height: 22px;
+        padding: 0 0.55rem;
+        background: var(--accent-pale);
+        border: 1px solid var(--accent-line);
+        border-radius: 4px;
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: var(--accent);
+    }
+
     @media (max-width: 900px) {
-        .main-title {
-            font-size: 1.9rem;
-        }
-        .inspector-meta {
-            grid-template-columns: 1fr;
-        }
+        .hero-title { font-size: 1.05rem; }
+        .inspector-meta { grid-template-columns: 1fr; }
     }
     </style>
     """,
@@ -888,6 +858,7 @@ def render_add_category_card() -> None:
             add_category(category_name)
             st.success("Category added.")
             st.session_state.show_add_category = False
+            st.session_state.data_version += 1
             st.rerun()
         except Exception as ex:
             st.error(f"Could not add category: {ex}")
@@ -937,6 +908,7 @@ def render_add_location_card() -> None:
             add_location(name, int(category_id), address, description, float(latitude), float(longitude))
             st.success("Location added.")
             st.session_state.show_add_location = False
+            st.session_state.data_version += 1
             st.rerun()
         except Exception as ex:
             st.error(f"Could not add location: {ex}")
@@ -1065,12 +1037,14 @@ def render_location_details() -> None:
                     if sub_upd:
                         update_location(loc_id, u_name, int(u_cat), u_addr, u_desc)
                         st.success("Location updated successfully.")
+                        st.session_state.data_version += 1
                         st.rerun()
 
                 if st.button("Delete location", key="delete_location_btn", type="primary", width="stretch"):
                     delete_location(loc_id)
                     st.session_state.selected_location_id = None
                     st.session_state.show_manage_loc = False
+                    st.session_state.data_version += 1
                     st.success("Location completely deleted.")
                     st.rerun()
 
@@ -1088,6 +1062,7 @@ def render_location_details() -> None:
                     file_obj.write(upl_file.getbuffer())
                 add_image(loc_id, filepath)
                 st.success(f"Image {upl_file.name} uploaded successfully.")
+                st.session_state.data_version += 1
                 st.rerun()
         else:
             st.info("Sign in to upload photos for this location.")
@@ -1132,6 +1107,7 @@ def render_location_details() -> None:
                     )
                     st.success(f"Review added. New average rating: {avg_rating}")
                     st.session_state.show_add_review_for_selected = False
+                    st.session_state.data_version += 1
                     st.rerun()
                 except Exception as ex:
                     st.error(f"Could not add review: {ex}")
@@ -1169,6 +1145,7 @@ def render_location_details() -> None:
                     with delete_col:
                         if st.button("Delete review", key=f"del_rev_{r_id}", width="stretch"):
                             delete_review(r_id)
+                            st.session_state.data_version += 1
                             st.rerun()
 
                     if st.session_state.get(f"editing_review_{r_id}", False):
@@ -1180,6 +1157,7 @@ def render_location_details() -> None:
                                 if st.form_submit_button("Save review", type="primary"):
                                     update_review(r_id, new_r, new_c)
                                     st.session_state[f"editing_review_{r_id}"] = False
+                                    st.session_state.data_version += 1
                                     st.rerun()
                             with upd_col2:
                                 if st.form_submit_button("Cancel"):
@@ -1188,120 +1166,15 @@ def render_location_details() -> None:
 
 
 def build_coverage_audit_df() -> pd.DataFrame:
-    return pd.DataFrame(
-        [
-            {
-                "Topic": "Complex queries (GROUP BY / HAVING / nested / WITH)",
-                "Status": "Implemented properly",
-                "Grade": "OK",
-                "Evidence": "Grouped ratings, HAVING filters, CTEs, correlated subqueries, EXISTS / NOT EXISTS are all present.",
-                "Audit note": "The query layer goes beyond basic SELECT usage and demonstrates meaningful multi-table logic.",
-            },
-            {
-                "Topic": "Set operations (UNION / INTERSECT / EXCEPT)",
-                "Status": "Implemented properly",
-                "Grade": "OK",
-                "Evidence": "UNION, INTERSECT, and EXCEPT are implemented as raw SQL queries.",
-                "Audit note": "SQLite uses EXCEPT instead of MINUS, which is a valid dialect substitution.",
-            },
-            {
-                "Topic": "Views",
-                "Status": "Implemented properly",
-                "Grade": "OK",
-                "Evidence": "The schema defines location_avg_rating and category_activity_summary as reusable derived relations.",
-                "Audit note": "View coverage is now stronger because the project exposes more than one non-trivial derived relation.",
-            },
-            {
-                "Topic": "Transactions (COMMIT / ROLLBACK / SAVEPOINT)",
-                "Status": "Implemented properly",
-                "Grade": "OK",
-                "Evidence": "The app now includes a rating SAVEPOINT demo plus a richer archive-and-delete transaction workflow.",
-                "Audit note": "Transaction control is demonstrated in both update and destructive multi-step scenarios.",
-            },
-            {
-                "Topic": "Triggers",
-                "Status": "Implemented properly",
-                "Grade": "OK",
-                "Evidence": "Audit, validation, and delete-archive triggers are all implemented at the schema level.",
-                "Audit note": "This is meaningful trigger coverage with both business-rule enforcement and audit behavior.",
-            },
-            {
-                "Topic": "Stored procedures / functions / packages",
-                "Status": "Partially implemented",
-                "Grade": "Partial",
-                "Evidence": "SQLite user-defined scalar function rating_band is registered and used in views/queries.",
-                "Audit note": "Function coverage improves, but SQLite still lacks true stored procedures and packages.",
-            },
-            {
-                "Topic": "Cursors (explicit / implicit / parameterized)",
-                "Status": "Partially implemented",
-                "Grade": "Partial",
-                "Evidence": "The app has both a general cursor routine and a parameterized category-scoped cursor analogue.",
-                "Audit note": "Cursor depth is better now, though it remains a Python analogue rather than true PL/SQL cursor syntax.",
-            },
-            {
-                "Topic": "Exception handling",
-                "Status": "Implemented properly",
-                "Grade": "OK",
-                "Evidence": "SQLite trigger validation now raises DB-level errors via RAISE(ABORT, ...), alongside application handling.",
-                "Audit note": "This is a reasonable SQLite equivalent for database-side business-rule exception behavior.",
-            },
-        ]
-    )
+    return pd.DataFrame()
 
 
 def build_substitution_df() -> pd.DataFrame:
-    return pd.DataFrame(
-        [
-            {
-                "Substitution": "Python functions instead of stored procedures",
-                "Academic verdict": "Weak substitution",
-                "Evaluation": "Acceptable for a practical SQLite app, but it still falls short if the lab explicitly expects DB-resident procedures.",
-            },
-            {
-                "Substitution": "SQLite user-defined function instead of stored PL/SQL function",
-                "Academic verdict": "Reasonable SQLite substitution",
-                "Evaluation": "It improves function coverage, but it is still weaker than a full stored-function ecosystem in PostgreSQL or Oracle.",
-            },
-            {
-                "Substitution": "Python cursor loop instead of explicit PL/SQL cursor",
-                "Academic verdict": "Partial substitution",
-                "Evaluation": "It now includes a parameterized cursor-style routine, but many graders will still mark it as weaker than native procedural cursors.",
-            },
-            {
-                "Substitution": "SQLite triggers and RAISE() instead of procedural exception blocks",
-                "Academic verdict": "Acceptable substitution",
-                "Evaluation": "This is genuine DB-side enforcement and should count well for trigger and business-rule validation coverage.",
-            },
-        ]
-    )
+    return pd.DataFrame()
 
 
 def build_improvement_df() -> pd.DataFrame:
-    return pd.DataFrame(
-        [
-            {
-                "Action": "If PostgreSQL is allowed, move archival delete into a stored procedure",
-                "Why": "That would close the biggest remaining procedural SQL gap.",
-            },
-            {
-                "Action": "Add more trigger-backed business rules",
-                "Why": "Examples like duplicate-review prevention would deepen practical trigger usage further.",
-            },
-            {
-                "Action": "Expose the SQLite user-defined function in more reports",
-                "Why": "That would make the function coverage feel less one-off.",
-            },
-            {
-                "Action": "Add a second parameterized cursor scenario",
-                "Why": "A second cursor use case would make the analogue feel more deliberate and academically stronger.",
-            },
-            {
-                "Action": "Document SQLite limitations explicitly in the report",
-                "Why": "It helps justify why procedures/packages are only partially covered in this engine.",
-            },
-        ]
-    )
+    return pd.DataFrame()
 
 
 def render_db_runtime_sections() -> None:
@@ -1424,7 +1297,9 @@ def render_db_runtime_sections() -> None:
             if st.button("Archive and delete location", key="run_archive_delete", type="primary", width="stretch"):
                 result = archive_delete_location_transaction(int(archive_location_id))
                 if result["status"] == "committed":
+                    st.session_state.data_version += 1
                     st.success(result["message"])
+                    st.rerun()
                 elif result["status"] == "rolled_back":
                     st.warning(result["message"])
                 else:
@@ -1477,262 +1352,281 @@ def render_db_runtime_sections() -> None:
 
 
 def render_analytics_page() -> None:
-    audit_df = build_coverage_audit_df()
-    substitution_df = build_substitution_df()
-    improvement_df = build_improvement_df()
-
-    ratings_df = average_rating_per_location()
-    top_df = top_rated_locations(min_reviews=1)
-    reviewed_df = most_reviewed_locations()
-    users_df = users_with_most_reviews()
-    category_view_df = get_category_activity_summary()
-    rating_band_df = location_rating_bands()
-    view_df = _to_df_for_ui(
-        "SELECT * FROM location_avg_rating ORDER BY review_count DESC, avg_rating DESC, location_name"
-    )
-    union_df = locations_union_high_activity()
-    except_df = active_but_not_top_rated()
-    intersect_df = common_favorites_and_reviewed()
-    exists_df = users_with_five_star_review()
-    all_df = locations_above_all_in_category()
-    correlated_df = best_per_category_correlated()
-    universal_df = users_who_reviewed_all_categories()
-    review_logs_df = get_review_logs()
-    deleted_audit_df = get_deleted_location_audit()
-
-    implemented_count = int((audit_df["Status"] == "Implemented properly").sum())
-    partial_count = int((audit_df["Status"] == "Partially implemented").sum())
-    missing_count = int((audit_df["Status"] == "Missing").sum())
+    import datetime
 
     render_page_banner(
-        "DBMS Lab Audit",
-        "A strict evaluator-style review of this project against common Database Systems Lab requirements: complex SQL, set operations, views, transactions, cursors, triggers, and procedural depth.",
-        kicker="Checklist-based assessment",
-    )
-    st.markdown(
-        f"""
-        <div class="flat-section">
-            <div class="surface-head">
-                <div class="surface-title">Audit summary</div>
-                <p class="surface-copy">{implemented_count} implemented, {partial_count} partial, {missing_count} missing. Final verdict: much stronger for SQLite now, but still only partially equivalent to a full PL/SQL lab because SQLite does not offer true stored procedures or packages.</p>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
+        "Analytics",
+        "Live insights into your Manipal Map data — leaderboards, query deep-dives, set operations, runtime demos, and trigger audit logs all in one place.",
+        kicker="Analytics & SQL Explorer",
+        chips=["Live data", "Interactive demos", "Trigger logs", "Cursor routines"],
     )
 
-    coverage_tab, queries_tab, advanced_tab, runtime_tab, improvements_tab = st.tabs(
-        ["Coverage Check", "Complex Queries", "Set Ops + Subqueries", "Transactions + Triggers", "Improvements"]
+    # ── Refresh bar ────────────────────────────────────────────────────────
+    refresh_col, ts_col = st.columns([1, 4])
+    with refresh_col:
+        if st.button("↻  Refresh all data", key="analytics_refresh", type="primary", width="stretch"):
+            st.session_state.data_version += 1
+            st.rerun()
+    with ts_col:
+        now_str = datetime.datetime.now().strftime("%H:%M:%S")
+        st.markdown(
+            f'<p style="color:var(--text-soft);margin:0.75rem 0 0 0.5rem;font-size:0.88rem;">'
+            f'Last refreshed at <strong>{now_str}</strong> &nbsp;·&nbsp; data version <strong>{st.session_state.data_version}</strong></p>',
+            unsafe_allow_html=True,
+        )
+
+    # ── Live summary metrics (always fresh — no cache) ─────────────────────
+    _ratings_df = average_rating_per_location()
+    _all_locs   = get_locations()
+    _total_reviews = int(_ratings_df["review_count"].fillna(0).sum()) if not _ratings_df.empty else 0
+    _best_avg = (
+        f"{float(_ratings_df['avg_rating'].dropna().max()):.2f}"
+        if not _ratings_df.empty and _ratings_df["avg_rating"].dropna().shape[0] > 0
+        else "N/A"
+    )
+    _review_logs_df    = get_review_logs()
+    _deleted_audit_df  = get_deleted_location_audit()
+
+    render_metric_row(
+        [
+            ("Locations", str(len(_all_locs)), "in the database"),
+            ("Total reviews", str(_total_reviews), "across all locations"),
+            ("Best avg rating", _best_avg, "highest-rated location"),
+            ("Trigger log entries", str(len(_review_logs_df)), f"+ {len(_deleted_audit_df)} archived deletes"),
+        ]
     )
 
-    with coverage_tab:
-        render_data_panel(
-            "Coverage check",
-            "Strict topic-by-topic grading against a DBMS lab manual style checklist.",
-            audit_df,
-        )
-        render_data_panel(
-            "Audit interpretation",
-            "The strongest remaining limitation is procedural SQL depth: SQLite can support triggers, views, SAVEPOINT workflows, validation with RAISE(), and user-defined functions, but not true stored procedures or packages.",
-            audit_df[["Topic", "Status", "Audit note"]],
-        )
+    st.markdown('<hr class="panel-divider">', unsafe_allow_html=True)
 
-    with queries_tab:
-        render_data_panel(
-            "Complex aggregate query",
-            "Average rating per location demonstrates joins, GROUP BY, aggregate functions, and ORDER BY.",
-            ratings_df,
-        )
-        render_data_panel(
-            "HAVING-based ranking query",
-            "Top-rated locations filters grouped rows with HAVING and orders by multiple derived measures.",
-            top_df,
-        )
-        render_data_panel(
-            "WITH clause / CTE query",
-            "Most-reviewed locations uses a review-count CTE before joining back to the location relation.",
-            reviewed_df,
-        )
-        render_data_panel(
-            "Category activity view",
-            "A second derived relation summarizing category-level activity, average rating, and review intensity band.",
-            category_view_df,
-        )
-        render_data_panel(
-            "Derived relation / view",
-            "The location_avg_rating view proves that summary logic is modeled as a reusable derived relation.",
-            view_df,
-        )
-        render_data_panel(
-            "SQLite function-backed query",
-            "Location rows classified through the SQLite user-defined function rating_band().",
-            rating_band_df,
-        )
-
-    with advanced_tab:
-        left_col, right_col = st.columns(2, gap="large")
-        with left_col:
-            render_data_panel(
-                "UNION",
-                "Locations surfaced either by high rating or by high review activity.",
-                union_df,
-                "No noteworthy locations found.",
-            )
-            render_data_panel(
-                "EXCEPT",
-                "Reviewed places that are active but do not qualify as top rated.",
-                except_df,
-                "All reviewed locations are top rated.",
-            )
-            render_data_panel(
-                "INTERSECT",
-                "Locations that appear in both Favorites and Reviews.",
-                intersect_df,
-                "No overlap between favorites and reviewed locations.",
-            )
-        with right_col:
-            render_data_panel(
-                "EXISTS",
-                "Users with at least one five-star review.",
-                exists_df,
-                "No users have given a five-star review.",
-            )
-            render_data_panel(
-                "ALL / universal comparison",
-                "Best location in each category using a peer-comparison query.",
-                all_df,
-                "No exclusive category leaders found.",
-            )
-            render_data_panel(
-                "Correlated subquery",
-                "Location average compared against its category average inside the same query.",
-                correlated_df,
-                "No reviewed locations found.",
-            )
-            render_data_panel(
-                "NOT EXISTS / relational division style",
-                "Users who reviewed all reviewed categories.",
-                universal_df,
-                "No user has reviewed all categories.",
-            )
-            render_data_panel(
-                "Grouped reviewer analytics",
-                "Users with most reviews is another meaningful grouped analytics query over the review table.",
-                users_df,
-            )
-
-    with runtime_tab:
-        render_db_runtime_sections()
-        render_data_panel(
-            "Trigger evidence: ReviewLogs",
-            "The trigger-backed audit table records insert and rating-update activity automatically.",
-            review_logs_df,
-            "No trigger log entries yet.",
-        )
-        render_data_panel(
-            "Delete archive evidence",
-            "Archived delete records captured by the BEFORE DELETE trigger on Locations.",
-            deleted_audit_df,
-            "No archived location deletions yet.",
-        )
-
-    with improvements_tab:
-        render_data_panel(
-            "Practical substitutions",
-            "Where SQLite uses an equivalent rather than a full PL/SQL feature, this table shows how strong the substitution is academically.",
-            substitution_df,
-        )
-        render_data_panel(
-            "Suggestions to improve score",
-            "Concrete changes that would raise the project closer to a strong lab submission.",
-            improvement_df,
-        )
-
-
-def render_advanced_sql_page() -> None:
-    render_page_banner(
-        "SQL Concept Demos",
-        "This page is the interactive runtime sandbox for the database concepts surfaced in the audit view, including set operations, subqueries, transactions, cursor-style processing, and trigger logs.",
-        kicker="Interactive demos",
+    # ── Sub-tabs ───────────────────────────────────────────────────────────
+    overview_tab, leaderboard_tab, setops_tab, runtime_tab, logs_tab = st.tabs(
+        ["📊 Overview", "🏆 Leaderboards", "⚙️ Set Operations", "🔄 Runtime Demos", "📋 Trigger Logs"]
     )
 
-    set_col, subquery_col = st.columns(2, gap="large")
-    with set_col:
+    # ── Overview ──────────────────────────────────────────────────────────
+    with overview_tab:
         st.markdown(
             """
             <div class="flat-section">
                 <div class="surface-head">
-                    <div class="panel-kicker">SQL tools</div>
-                    <div class="surface-title">Set operations</div>
-                    <p class="surface-copy">Compare location groups using UNION, EXCEPT, and INTERSECT queries.</p>
+                    <div class="panel-kicker">Live query results</div>
+                    <div class="surface-title">Location ratings overview</div>
+                    <p class="surface-copy">Average rating per location, ordered by score. Null-rated locations (no reviews yet) appear at the bottom.</p>
                 </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
-        with st.expander("UNION: noteworthy locations", expanded=True):
+        safe_df(average_rating_per_location(), "No locations found.")
+
+        st.markdown('<hr class="panel-divider">', unsafe_allow_html=True)
+
+        cat_col, band_col = st.columns(2, gap="large")
+        with cat_col:
+            st.markdown(
+                """
+                <div class="flat-section">
+                    <div class="surface-head">
+                        <div class="panel-kicker">View query</div>
+                        <div class="surface-title">Category activity summary</div>
+                        <p class="surface-copy">Powered by the <code>category_activity_summary</code> view — counts locations, reviewed locations, and computes an intensity band via the <code>rating_band()</code> UDF.</p>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            safe_df(get_category_activity_summary(), "No categories yet.")
+        with band_col:
+            st.markdown(
+                """
+                <div class="flat-section">
+                    <div class="surface-head">
+                        <div class="panel-kicker">UDF + view</div>
+                        <div class="surface-title">Rating band classification</div>
+                        <p class="surface-copy">Every location is assigned Excellent / Strong / Average / Needs Attention / Unrated using SQLite's registered <code>rating_band()</code> scalar function.</p>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            safe_df(location_rating_bands(), "No locations found.")
+
+    # ── Leaderboards ──────────────────────────────────────────────────────
+    with leaderboard_tab:
+        top_col, reviewed_col = st.columns(2, gap="large")
+        with top_col:
+            min_rev = st.number_input("Minimum reviews threshold", min_value=1, max_value=20, value=1, step=1, key="leaderboard_min_reviews")
+            st.markdown(
+                """
+                <div class="flat-section">
+                    <div class="surface-head">
+                        <div class="panel-kicker">HAVING filter</div>
+                        <div class="surface-title">Top-rated locations</div>
+                        <p class="surface-copy">Grouped by location with a HAVING clause filtering out locations below the review threshold. Ordered by average rating descending.</p>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            safe_df(top_rated_locations(min_reviews=int(min_rev)), "No locations meet this threshold.")
+        with reviewed_col:
+            st.markdown(
+                """
+                <div class="flat-section">
+                    <div class="surface-head">
+                        <div class="panel-kicker">CTE query</div>
+                        <div class="surface-title">Most reviewed locations</div>
+                        <p class="surface-copy">Uses a <code>WITH</code> clause (CTE) to pre-aggregate review counts before joining back to Locations. Shows places with the most community engagement.</p>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            safe_df(most_reviewed_locations(), "No reviews yet.")
+
+        st.markdown('<hr class="panel-divider">', unsafe_allow_html=True)
+
+        user_col, five_star_col = st.columns(2, gap="large")
+        with user_col:
+            st.markdown(
+                """
+                <div class="flat-section">
+                    <div class="surface-head">
+                        <div class="panel-kicker">GROUP BY aggregation</div>
+                        <div class="surface-title">Most active reviewers</div>
+                        <p class="surface-copy">Users ranked by total review count. Identifies the most engaged community contributors.</p>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            safe_df(users_with_most_reviews(), "No reviewers yet.")
+        with five_star_col:
+            st.markdown(
+                """
+                <div class="flat-section">
+                    <div class="surface-head">
+                        <div class="panel-kicker">EXISTS subquery</div>
+                        <div class="surface-title">Users with a five-star review</div>
+                        <p class="surface-copy">Uses an EXISTS correlated subquery — returns users who have submitted at least one perfect rating.</p>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            safe_df(users_with_five_star_review(), "No five-star reviews found.")
+
+        st.markdown('<hr class="panel-divider">', unsafe_allow_html=True)
+        best_col, corr_col = st.columns(2, gap="large")
+        with best_col:
+            st.markdown(
+                """
+                <div class="flat-section">
+                    <div class="surface-head">
+                        <div class="panel-kicker">NOT EXISTS / peer comparison</div>
+                        <div class="surface-title">Category leaders</div>
+                        <p class="surface-copy">The top-rated location in each category — no peer within the same category has a higher or equal average. Uses a NOT EXISTS peer comparison.</p>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            safe_df(locations_above_all_in_category(), "No exclusive category leaders found.")
+        with corr_col:
+            st.markdown(
+                """
+                <div class="flat-section">
+                    <div class="surface-head">
+                        <div class="panel-kicker">Correlated subquery</div>
+                        <div class="surface-title">Location vs category average</div>
+                        <p class="surface-copy">Each row shows a location's own average beside its category's overall average. Computed with a correlated scalar subquery inside the SELECT list.</p>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            safe_df(best_per_category_correlated(), "No reviewed locations found.")
+
+    # ── Set Operations ────────────────────────────────────────────────────
+    with setops_tab:
+        st.markdown(
+            """
+            <div class="flat-section">
+                <div class="surface-head">
+                    <div class="panel-kicker">Set algebra on live data</div>
+                    <div class="surface-title">UNION · EXCEPT · INTERSECT</div>
+                    <p class="surface-copy">Each result below is computed fresh from the database. Expand a section to see the live output.</p>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        with st.expander("UNION — top-rated OR most-reviewed", expanded=True):
+            st.caption("Locations surfaced either by high rating (≥ 4.0 avg) OR by high review count (≥ 2). A location can appear for both reasons.")
             safe_df(locations_union_high_activity(), "No noteworthy locations found.")
-        with st.expander("EXCEPT: popular but not top rated", expanded=False):
-            safe_df(active_but_not_top_rated(), "All reviewed locations are top rated.")
-        with st.expander("INTERSECT: favorited and reviewed", expanded=False):
+
+        with st.expander("EXCEPT — active but not top-rated", expanded=False):
+            st.caption("Reviewed places that have at least one review but do NOT qualify as top-rated. Useful for spotting locations that need improvement.")
+            safe_df(active_but_not_top_rated(), "All reviewed locations are also top rated.")
+
+        with st.expander("INTERSECT — favorited AND reviewed", expanded=False):
+            st.caption("Locations that appear in both the Favorites table and the Reviews table — places the community both saved and rated.")
             safe_df(common_favorites_and_reviewed(), "No locations appear in both favorites and reviews.")
 
-    with subquery_col:
+        with st.expander("NOT EXISTS (relational division) — users who reviewed all categories", expanded=False):
+            st.caption("Uses a NOT EXISTS / EXCEPT combination to find users who reviewed at least one location in every category that has been reviewed.")
+            safe_df(users_who_reviewed_all_categories(), "No user has reviewed all categories yet.")
+
+    # ── Runtime Demos ─────────────────────────────────────────────────────
+    with runtime_tab:
+        render_db_runtime_sections()
+
+    # ── Trigger Logs ──────────────────────────────────────────────────────
+    with logs_tab:
         st.markdown(
             """
             <div class="flat-section">
                 <div class="surface-head">
-                    <div class="panel-kicker">SQL tools</div>
-                    <div class="surface-title">Advanced subqueries</div>
-                    <p class="surface-copy">Inspect EXISTS, ALL, correlated subqueries, and universal-review coverage logic.</p>
+                    <div class="panel-kicker">Automatic DB-side logging</div>
+                    <div class="surface-title">Review audit log</div>
+                    <p class="surface-copy">Every INSERT or rating UPDATE on the Reviews table is automatically captured by SQLite triggers <code>trg_log_review_insert</code> and <code>trg_log_review_update</code>. No Python code writes these rows — they are purely trigger-driven.</p>
                 </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
-        with st.expander("EXISTS: users with a five-star review", expanded=True):
-            safe_df(users_with_five_star_review(), "No users have given a five-star review.")
-        with st.expander("ALL: best location in each category", expanded=False):
-            safe_df(locations_above_all_in_category(), "No location exclusively leads its category.")
-        with st.expander("Correlated: location vs category average", expanded=False):
-            safe_df(best_per_category_correlated(), "No reviewed locations found.")
-        with st.expander("NOT EXISTS: users who reviewed all categories", expanded=False):
-            safe_df(users_who_reviewed_all_categories(), "No user has reviewed all categories.")
+        if st.button("↻  Refresh logs", key="refresh_logs_btn", width="stretch"):
+            st.rerun()
+        safe_df(get_review_logs(), "No trigger log entries yet. Add or edit a review to generate log rows.")
 
-    render_data_panel(
-        "Function-backed classification",
-        "Rows classified by the SQLite user-defined function rating_band().",
-        location_rating_bands(),
-    )
-    render_data_panel(
-        "Category activity view",
-        "A second derived relation summarizing activity and rating band at the category level.",
-        get_category_activity_summary(),
-    )
+        st.markdown('<hr class="panel-divider">', unsafe_allow_html=True)
+        st.markdown(
+            """
+            <div class="flat-section">
+                <div class="surface-head">
+                    <div class="panel-kicker">BEFORE DELETE trigger</div>
+                    <div class="surface-title">Deleted location archive</div>
+                    <p class="surface-copy">When a location is deleted, the <code>trg_archive_location_delete</code> trigger fires BEFORE the row is removed, capturing the location's name and related-row counts into <code>DeletedLocationAudit</code>.</p>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        safe_df(get_deleted_location_audit(), "No locations have been deleted yet.")
 
-    render_db_runtime_sections()
-
-    render_data_panel(
-        "Review audit log",
-        "Changes to review ratings are tracked through the SQLite trigger-backed audit table.",
-        get_review_logs(),
-        "No audit log entries yet.",
-    )
-    render_data_panel(
-        "Deleted location archive log",
-        "Each deleted location is archived by a BEFORE DELETE trigger before cascading cleanup occurs.",
-        get_deleted_location_audit(),
-        "No archived location deletions yet.",
-    )
 
 
 def _to_df_for_ui(sql: str) -> pd.DataFrame:
-    from sqlalchemy import text
-
-    from db import engine
-
-    with engine.connect() as conn:
-        return pd.read_sql(text(sql), conn)
+    from db import get_conn
+    conn = get_conn()
+    try:
+        cursor = conn.execute(sql)
+        cols = [desc[0] for desc in cursor.description]
+        rows = cursor.fetchall()
+        return pd.DataFrame([dict(zip(cols, row)) for row in rows], columns=cols)
+    finally:
+        conn.close()
 
 
 def init_state() -> None:
@@ -1746,6 +1640,8 @@ def init_state() -> None:
         "show_add_review_for_selected": False,
         "current_page": "map",
         "selected_category_id": None,
+        # Incremented after every write so analytics always shows fresh data.
+        "data_version": 0,
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -1816,14 +1712,13 @@ else:
         st.markdown('<div class="panel-kicker">Workspace</div>', unsafe_allow_html=True)
         st.markdown('<p class="nav-title">Navigation</p>', unsafe_allow_html=True)
         st.markdown(
-            '<p class="nav-copy">Move between map exploration, the DBMS lab audit view, and the interactive SQL concept demos from one control rail.</p>',
+            '<p class="nav-copy">Move between map exploration and the Analytics workspace for live query results, leaderboards, set operations, runtime demos, and trigger logs.</p>',
             unsafe_allow_html=True,
         )
 
         pages = [
             ("Map View", "map", ":material/map:"),
-            ("DBMS Audit", "analytics", ":material/query_stats:"),
-            ("SQL Demos", "advanced", ":material/code:"),
+            ("Analytics", "analytics", ":material/query_stats:"),
         ]
         for label, page_key, icon in pages:
             if st.button(
@@ -1869,6 +1764,7 @@ else:
             try:
                 insert_sample_data()
                 st.success("Sample data loaded.")
+                st.session_state.data_version += 1
                 st.rerun()
             except Exception as ex:
                 st.error(f"Could not load sample data: {ex}")
@@ -1879,8 +1775,6 @@ else:
 
         if st.session_state.current_page == "analytics":
             render_analytics_page()
-        elif st.session_state.current_page == "advanced":
-            render_advanced_sql_page()
         else:
             all_locations_df = get_locations()
             locations_df = search_locations_by_category(st.session_state.selected_category_id)

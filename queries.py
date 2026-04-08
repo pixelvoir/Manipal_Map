@@ -1,27 +1,45 @@
-"""All SQL operations for the Manipal Location & Review Management System (SQLite strictly)."""
+"""All SQL operations for the Manipal Location & Review Management System.
+
+Uses Python's built-in sqlite3 directly — every query is a raw SQL string.
+No ORM, no abstraction layer.
+"""
 
 from datetime import date
 from typing import Any
 
 import pandas as pd
-from sqlalchemy import text
 
-from db import engine
+from db import get_conn
 
+
+# ── Internal helpers ───────────────────────────────────────────────────────────
 
 def _to_df(sql: str, params: dict[str, Any] | None = None) -> pd.DataFrame:
-    with engine.connect() as conn:
-        return pd.read_sql(text(sql), conn, params=params)
+    """Execute a SELECT and return results as a DataFrame."""
+    conn = get_conn()
+    try:
+        cursor = conn.execute(sql, params or {})
+        cols = [desc[0] for desc in cursor.description]
+        rows = cursor.fetchall()
+        return pd.DataFrame([dict(zip(cols, row)) for row in rows], columns=cols)
+    finally:
+        conn.close()
 
 
 def _execute(sql: str, params: dict[str, Any] | None = None) -> None:
-    with engine.begin() as conn:
-        conn.execute(text(sql), params or {})
+    """Execute a single write statement inside its own commit."""
+    conn = get_conn()
+    try:
+        conn.execute(sql, params or {})
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
-# -----------------------------
-# Authentication
-# -----------------------------
+# ── Authentication ─────────────────────────────────────────────────────────────
 
 def register_user(name: str, email: str, password_hash: str) -> None:
     _execute(
@@ -38,31 +56,27 @@ def register_user(name: str, email: str, password_hash: str) -> None:
 
 
 def get_user_by_email(email: str) -> dict[str, Any] | None:
-    with engine.connect() as conn:
-        row = conn.execute(
-            text(
-                """
-                SELECT user_id, name, email, password_hash
-                FROM Users
-                WHERE email = :email
-                """
-            ),
+    conn = get_conn()
+    try:
+        cursor = conn.execute(
+            """
+            SELECT user_id, name, email, password_hash
+            FROM Users
+            WHERE email = :email
+            """,
             {"email": email.strip().lower()},
-        ).mappings().first()
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
 
-    return dict(row) if row else None
 
-
-# -----------------------------
-# Category CRUD
-# -----------------------------
+# ── Category CRUD ──────────────────────────────────────────────────────────────
 
 def add_category(category_name: str) -> None:
     _execute(
-        """
-        INSERT INTO Categories(category_name)
-        VALUES (:category_name)
-        """,
+        "INSERT INTO Categories(category_name) VALUES (:category_name)",
         {"category_name": category_name.strip()},
     )
 
@@ -71,9 +85,7 @@ def get_categories() -> pd.DataFrame:
     return _to_df("SELECT * FROM Categories ORDER BY category_name")
 
 
-# -----------------------------
-# Location CRUD
-# -----------------------------
+# ── Location CRUD ──────────────────────────────────────────────────────────────
 
 def add_location(
     name: str,
@@ -110,9 +122,9 @@ def update_location(
     _execute(
         """
         UPDATE Locations
-        SET name = :name,
+        SET name        = :name,
             category_id = :category_id,
-            address = :address,
+            address     = :address,
             description = :description
         WHERE location_id = :location_id
         """,
@@ -127,9 +139,11 @@ def update_location(
 
 
 def delete_location(location_id: int) -> None:
-    """Delete a location and rely on SQLite cascade + archive trigger behavior."""
-    with engine.begin() as conn:
-        conn.execute(text("DELETE FROM Locations WHERE location_id = :lid"), {"lid": location_id})
+    """Delete a location — the trg_archive_location_delete trigger fires automatically."""
+    _execute(
+        "DELETE FROM Locations WHERE location_id = :lid",
+        {"lid": location_id},
+    )
 
 
 def get_locations() -> pd.DataFrame:
@@ -187,20 +201,19 @@ def get_location_details(location_id: int) -> pd.DataFrame:
             l.latitude,
             l.longitude,
             ROUND(AVG(r.rating), 2) AS avg_rating,
-            COUNT(r.review_id) AS review_count
+            COUNT(r.review_id)      AS review_count
         FROM Locations l
         LEFT JOIN Categories c ON l.category_id = c.category_id
-        LEFT JOIN Reviews r ON l.location_id = r.location_id
+        LEFT JOIN Reviews r     ON l.location_id = r.location_id
         WHERE l.location_id = :location_id
-        GROUP BY l.location_id, l.name, l.category_id, c.category_name, l.address, l.description, l.latitude, l.longitude
+        GROUP BY l.location_id, l.name, l.category_id, c.category_name,
+                 l.address, l.description, l.latitude, l.longitude
         """,
         {"location_id": location_id},
     )
 
 
-# -----------------------------
-# Reviews CRUD
-# -----------------------------
+# ── Reviews CRUD ───────────────────────────────────────────────────────────────
 
 def add_review(
     user_id: int,
@@ -209,28 +222,33 @@ def add_review(
     comment: str,
     review_date: date,
 ) -> float:
-    with engine.begin() as conn:
+    conn = get_conn()
+    try:
         conn.execute(
-            text(
-                """
-                INSERT INTO Reviews(user_id, location_id, rating, comment, date)
-                VALUES (:user_id, :location_id, :rating, :comment, :review_date)
-                """
-            ),
+            """
+            INSERT INTO Reviews(user_id, location_id, rating, comment, date)
+            VALUES (:user_id, :location_id, :rating, :comment, :review_date)
+            """,
             {
                 "user_id": user_id,
                 "location_id": location_id,
                 "rating": rating,
                 "comment": comment.strip(),
-                "review_date": review_date,
+                "review_date": str(review_date),
             },
         )
-        avg_rating = conn.execute(
-            text("SELECT ROUND(AVG(rating), 2) FROM Reviews WHERE location_id = :location_id"),
+        cursor = conn.execute(
+            "SELECT ROUND(AVG(rating), 2) FROM Reviews WHERE location_id = :location_id",
             {"location_id": location_id},
-        ).scalar_one()
-
-    return float(avg_rating)
+        )
+        avg_rating = cursor.fetchone()[0]
+        conn.commit()
+        return float(avg_rating)
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 def update_review(review_id: int, new_rating: int, new_comment: str) -> None:
@@ -245,9 +263,22 @@ def update_review(review_id: int, new_rating: int, new_comment: str) -> None:
 
 
 def delete_review(review_id: int) -> None:
-    with engine.begin() as conn:
-        conn.execute(text("DELETE FROM ReviewLogs WHERE review_id = :review_id"), {"review_id": review_id})
-        conn.execute(text("DELETE FROM Reviews WHERE review_id = :review_id"), {"review_id": review_id})
+    conn = get_conn()
+    try:
+        conn.execute(
+            "DELETE FROM ReviewLogs WHERE review_id = :review_id",
+            {"review_id": review_id},
+        )
+        conn.execute(
+            "DELETE FROM Reviews WHERE review_id = :review_id",
+            {"review_id": review_id},
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 def get_reviews_for_location(location_id: int) -> pd.DataFrame:
@@ -269,48 +300,41 @@ def get_reviews_for_location(location_id: int) -> pd.DataFrame:
     )
 
 
-# -----------------------------
-# Favorites
-# -----------------------------
+# ── Favorites ──────────────────────────────────────────────────────────────────
 
 def add_favorite(user_id: int, location_id: int) -> None:
-    with engine.begin() as conn:
-        conn.execute(
-            text("INSERT OR IGNORE INTO Favorites(user_id, location_id) VALUES (:user_id, :location_id)"),
-            {"user_id": user_id, "location_id": location_id},
-        )
+    _execute(
+        "INSERT OR IGNORE INTO Favorites(user_id, location_id) VALUES (:user_id, :location_id)",
+        {"user_id": user_id, "location_id": location_id},
+    )
 
 
-# -----------------------------
-# Images Feature
-# -----------------------------
+# ── Images ─────────────────────────────────────────────────────────────────────
 
 def add_image(location_id: int, local_file_url: str) -> None:
     _execute(
         "INSERT INTO Images(location_id, image_url) VALUES (:location_id, :image_url)",
-        {"location_id": location_id, "image_url": local_file_url}
+        {"location_id": location_id, "image_url": local_file_url},
     )
 
 
 def get_images_for_location(location_id: int) -> pd.DataFrame:
     return _to_df(
         "SELECT image_id, image_url FROM Images WHERE location_id = :location_id ORDER BY image_id DESC",
-        {"location_id": location_id}
+        {"location_id": location_id},
     )
 
 
-# -----------------------------
-# Standard Analytics Queries
-# -----------------------------
+# ── Standard Analytics Queries ─────────────────────────────────────────────────
 
 def average_rating_per_location() -> pd.DataFrame:
     return _to_df(
         """
         SELECT
             l.location_id,
-            l.name AS location_name,
-            ROUND(AVG(r.rating), 2) AS avg_rating,
-            COUNT(r.review_id) AS review_count
+            l.name                    AS location_name,
+            ROUND(AVG(r.rating), 2)   AS avg_rating,
+            COUNT(r.review_id)        AS review_count
         FROM Locations l
         LEFT JOIN Reviews r ON l.location_id = r.location_id
         GROUP BY l.location_id, l.name
@@ -318,14 +342,15 @@ def average_rating_per_location() -> pd.DataFrame:
         """
     )
 
+
 def top_rated_locations(min_reviews: int = 1) -> pd.DataFrame:
     return _to_df(
         """
         SELECT
             l.location_id,
-            l.name AS location_name,
-            ROUND(AVG(r.rating), 2) AS avg_rating,
-            COUNT(r.review_id) AS review_count
+            l.name                    AS location_name,
+            ROUND(AVG(r.rating), 2)   AS avg_rating,
+            COUNT(r.review_id)        AS review_count
         FROM Locations l
         JOIN Reviews r ON l.location_id = r.location_id
         GROUP BY l.location_id, l.name
@@ -334,6 +359,7 @@ def top_rated_locations(min_reviews: int = 1) -> pd.DataFrame:
         """,
         {"min_reviews": min_reviews},
     )
+
 
 def most_reviewed_locations() -> pd.DataFrame:
     return _to_df(
@@ -349,6 +375,7 @@ def most_reviewed_locations() -> pd.DataFrame:
         ORDER BY rc.total_reviews DESC, l.name
         """
     )
+
 
 def users_with_most_reviews() -> pd.DataFrame:
     return _to_df(
@@ -403,9 +430,8 @@ def location_rating_bands() -> pd.DataFrame:
         """
     )
 
-# -----------------------------
-# SET OPERATIONS
-# -----------------------------
+
+# ── Set Operations ─────────────────────────────────────────────────────────────
 
 def locations_union_high_activity() -> pd.DataFrame:
     return _to_df(
@@ -425,6 +451,7 @@ def locations_union_high_activity() -> pd.DataFrame:
         """
     )
 
+
 def active_but_not_top_rated() -> pd.DataFrame:
     return _to_df(
         """
@@ -443,6 +470,7 @@ def active_but_not_top_rated() -> pd.DataFrame:
         """
     )
 
+
 def common_favorites_and_reviewed() -> pd.DataFrame:
     return _to_df(
         """
@@ -457,9 +485,8 @@ def common_favorites_and_reviewed() -> pd.DataFrame:
         """
     )
 
-# -----------------------------
-# ADVANCED SUBQUERIES
-# -----------------------------
+
+# ── Advanced Subqueries ────────────────────────────────────────────────────────
 
 def users_with_five_star_review() -> pd.DataFrame:
     return _to_df(
@@ -473,6 +500,7 @@ def users_with_five_star_review() -> pd.DataFrame:
         """
     )
 
+
 def locations_above_all_in_category() -> pd.DataFrame:
     return _to_df(
         """
@@ -482,33 +510,44 @@ def locations_above_all_in_category() -> pd.DataFrame:
                 ROUND(AVG(r.rating), 2) AS avg_rating
             FROM Locations l
             JOIN Categories c ON l.category_id = c.category_id
-            JOIN Reviews r ON l.location_id = r.location_id
+            JOIN Reviews r    ON l.location_id = r.location_id
             GROUP BY l.location_id, l.name, l.category_id, c.category_name
         )
         SELECT la.location_id, la.name AS location_name, la.category_name, la.avg_rating
         FROM loc_avgs la
         WHERE NOT EXISTS (
             SELECT 1 FROM loc_avgs peer
-            WHERE peer.category_id = la.category_id AND peer.location_id != la.location_id AND peer.avg_rating >= la.avg_rating
+            WHERE peer.category_id = la.category_id
+              AND peer.location_id != la.location_id
+              AND peer.avg_rating >= la.avg_rating
         )
         ORDER BY la.category_name, la.avg_rating DESC
         """
     )
 
+
 def best_per_category_correlated() -> pd.DataFrame:
     return _to_df(
         """
         SELECT
-            l.location_id, l.name AS location_name, c.category_name,
+            l.location_id,
+            l.name AS location_name,
+            c.category_name,
             ROUND(AVG(r.rating), 2) AS location_avg,
-            (SELECT ROUND(AVG(r2.rating), 2) FROM Reviews r2 JOIN Locations l2 ON r2.location_id = l2.location_id WHERE l2.category_id = l.category_id) AS category_avg
+            (
+                SELECT ROUND(AVG(r2.rating), 2)
+                FROM Reviews r2
+                JOIN Locations l2 ON r2.location_id = l2.location_id
+                WHERE l2.category_id = l.category_id
+            ) AS category_avg
         FROM Locations l
         JOIN Categories c ON l.category_id = c.category_id
-        JOIN Reviews r ON l.location_id = r.location_id
+        JOIN Reviews r    ON l.location_id = r.location_id
         GROUP BY l.location_id, l.name, c.category_name, l.category_id
         ORDER BY c.category_name, location_avg DESC
         """
     )
+
 
 def users_who_reviewed_all_categories() -> pd.DataFrame:
     return _to_df(
@@ -524,32 +563,38 @@ def users_who_reviewed_all_categories() -> pd.DataFrame:
             FROM Reviews r
             JOIN Locations l2 ON r.location_id = l2.location_id
             WHERE r.user_id = u.user_id
-        ) AND EXISTS (SELECT 1 FROM Reviews r3 WHERE r3.user_id = u.user_id)
+        )
+        AND EXISTS (SELECT 1 FROM Reviews r3 WHERE r3.user_id = u.user_id)
         ORDER BY u.name
         """
     )
 
 
-# -----------------------------
-# EXPLICIT TRANSACTION CONTROL
-# -----------------------------
+# ── Explicit Transaction Control (SAVEPOINT) ───────────────────────────────────
 
 def demo_savepoint_transaction(review_id: int, new_rating: int) -> dict:
-    with engine.begin() as conn:
+    """Demonstrates SAVEPOINT / ROLLBACK TO SAVEPOINT / RELEASE SAVEPOINT."""
+    conn = get_conn()
+    conn.isolation_level = None  # manual transaction control for SAVEPOINT
+    try:
+        conn.execute("BEGIN")
+
         row = conn.execute(
-            text("SELECT rating FROM Reviews WHERE review_id = :rid"),
+            "SELECT rating FROM Reviews WHERE review_id = :rid",
             {"rid": review_id},
         ).fetchone()
 
         if row is None:
+            conn.execute("ROLLBACK")
             return {"status": "error", "message": f"Review {review_id} not found.", "old_rating": None}
 
         old_rating = row[0]
-        conn.execute(text("SAVEPOINT sp_rating_update"))
+        conn.execute("SAVEPOINT sp_rating_update")
 
         if new_rating < 1 or new_rating > 5:
-            conn.execute(text("ROLLBACK TO SAVEPOINT sp_rating_update"))
-            conn.execute(text("RELEASE SAVEPOINT sp_rating_update"))
+            conn.execute("ROLLBACK TO SAVEPOINT sp_rating_update")
+            conn.execute("RELEASE SAVEPOINT sp_rating_update")
+            conn.execute("COMMIT")
             return {
                 "status": "rolled_back",
                 "message": f"Invalid rating {new_rating}. Must be 1–5. ROLLBACK TO SAVEPOINT executed. No change made.",
@@ -557,63 +602,76 @@ def demo_savepoint_transaction(review_id: int, new_rating: int) -> dict:
             }
 
         conn.execute(
-            text("UPDATE Reviews SET rating = :new_rating WHERE review_id = :rid"),
+            "UPDATE Reviews SET rating = :new_rating WHERE review_id = :rid",
             {"new_rating": new_rating, "rid": review_id},
         )
-        conn.execute(text("RELEASE SAVEPOINT sp_rating_update"))
+        conn.execute("RELEASE SAVEPOINT sp_rating_update")
+        conn.execute("COMMIT")
         return {
             "status": "committed",
             "message": f"Rating updated from {old_rating} → {new_rating}. SAVEPOINT released, transaction COMMITTED.",
             "old_rating": old_rating,
         }
+    except Exception:
+        try:
+            conn.execute("ROLLBACK")
+        except Exception:
+            pass
+        raise
+    finally:
+        conn.close()
 
-# -----------------------------
-# RICHER TRANSACTION WORKFLOW
-# -----------------------------
 
 def archive_delete_location_transaction(location_id: int) -> dict[str, Any]:
-    """Archive and delete a location inside an explicit SAVEPOINT workflow."""
-    with engine.begin() as conn:
+    """Archive and delete a location using an explicit SAVEPOINT workflow."""
+    conn = get_conn()
+    conn.isolation_level = None  # manual transaction control for SAVEPOINT
+    try:
+        conn.execute("BEGIN")
+
         row = conn.execute(
-            text(
-                """
-                SELECT
-                    l.location_id,
-                    l.name,
-                    (SELECT COUNT(*) FROM Reviews WHERE location_id = l.location_id) AS review_count,
-                    (SELECT COUNT(*) FROM Images WHERE location_id = l.location_id) AS image_count,
-                    (SELECT COUNT(*) FROM Favorites WHERE location_id = l.location_id) AS favorite_count
-                FROM Locations l
-                WHERE l.location_id = :lid
-                """
-            ),
+            """
+            SELECT
+                l.location_id,
+                l.name,
+                (SELECT COUNT(*) FROM Reviews   WHERE location_id = l.location_id) AS review_count,
+                (SELECT COUNT(*) FROM Images    WHERE location_id = l.location_id) AS image_count,
+                (SELECT COUNT(*) FROM Favorites WHERE location_id = l.location_id) AS favorite_count
+            FROM Locations l
+            WHERE l.location_id = :lid
+            """,
             {"lid": location_id},
-        ).mappings().first()
+        ).fetchone()
 
         if row is None:
+            conn.execute("ROLLBACK")
             return {"status": "error", "message": f"Location {location_id} not found."}
 
-        conn.execute(text("SAVEPOINT sp_location_archive_delete"))
+        conn.execute("SAVEPOINT sp_location_archive_delete")
         try:
-            conn.execute(text("DELETE FROM Locations WHERE location_id = :lid"), {"lid": location_id})
-            conn.execute(text("RELEASE SAVEPOINT sp_location_archive_delete"))
+            conn.execute(
+                "DELETE FROM Locations WHERE location_id = :lid",
+                {"lid": location_id},
+            )
+            conn.execute("RELEASE SAVEPOINT sp_location_archive_delete")
         except Exception as ex:
-            conn.execute(text("ROLLBACK TO SAVEPOINT sp_location_archive_delete"))
-            conn.execute(text("RELEASE SAVEPOINT sp_location_archive_delete"))
+            conn.execute("ROLLBACK TO SAVEPOINT sp_location_archive_delete")
+            conn.execute("RELEASE SAVEPOINT sp_location_archive_delete")
+            conn.execute("ROLLBACK")
             return {"status": "rolled_back", "message": f"Delete failed and was rolled back: {ex}"}
 
         audit_row = conn.execute(
-            text(
-                """
-                SELECT audit_id, location_name, deleted_at, review_count, image_count, favorite_count, deletion_mode
-                FROM DeletedLocationAudit
-                WHERE location_id = :lid
-                ORDER BY audit_id DESC
-                LIMIT 1
-                """
-            ),
+            """
+            SELECT audit_id, location_name, deleted_at, review_count, image_count, favorite_count, deletion_mode
+            FROM DeletedLocationAudit
+            WHERE location_id = :lid
+            ORDER BY audit_id DESC
+            LIMIT 1
+            """,
             {"lid": location_id},
-        ).mappings().first()
+        ).fetchone()
+
+        conn.execute("COMMIT")
 
         if audit_row is None:
             return {"status": "error", "message": "Delete completed but no archive record was captured."}
@@ -621,49 +679,73 @@ def archive_delete_location_transaction(location_id: int) -> dict[str, Any]:
         return {
             "status": "committed",
             "message": (
-                f"Deleted {audit_row['location_name']} and archived counts: "
-                f"{audit_row['review_count']} reviews, {audit_row['image_count']} images, "
-                f"{audit_row['favorite_count']} favorites."
+                f"Deleted '{audit_row[1]}' and archived counts: "
+                f"{audit_row[3]} reviews, {audit_row[4]} images, "
+                f"{audit_row[5]} favorites."
             ),
         }
+    except Exception:
+        try:
+            conn.execute("ROLLBACK")
+        except Exception:
+            pass
+        raise
+    finally:
+        conn.close()
 
 
-# -----------------------------
-# CURSOR-BASED ROUTINE (Python-level cursor over raw SQL)
-# -----------------------------
+# ── Cursor-Based Routine (Python-level cursor over raw SQL) ────────────────────
 
 def flag_low_rated_locations(threshold: float = 3.5) -> pd.DataFrame:
-    """ Python-level cursor loop (DB-API cursor, analogous to PL/SQL explicit cursor loop) """
-    with engine.begin() as conn:
-        cursor_result = conn.execute(
-            text(
-                """
-                SELECT l.location_id, ROUND(AVG(r.rating), 2) AS avg_r
-                FROM Locations l
-                LEFT JOIN Reviews r ON l.location_id = r.location_id
-                GROUP BY l.location_id
-                """
-            )
+    """Python-level cursor loop — analogous to an explicit PL/SQL cursor loop.
+
+    Fetches all location averages, iterates row-by-row, and upserts into
+    LocationStatus based on a threshold condition.
+    """
+    conn = get_conn()
+    try:
+        # Open the "cursor" — fetch the full result set
+        cursor = conn.execute(
+            """
+            SELECT l.location_id, ROUND(AVG(r.rating), 2) AS avg_r
+            FROM Locations l
+            LEFT JOIN Reviews r ON l.location_id = r.location_id
+            GROUP BY l.location_id
+            """
         )
-        rows = cursor_result.fetchall()
+        rows = cursor.fetchall()
+
+        # Iterate row-by-row and decide status (cursor loop body)
         for row in rows:
             loc_id = row[0]
-            avg_r = row[1]
+            avg_r  = row[1]
             status = "flagged" if (avg_r is None or avg_r < threshold) else "good"
             conn.execute(
-                text(
-                    """
-                    INSERT INTO LocationStatus(location_id, status, last_updated)
-                    VALUES (:lid, :status, CURRENT_TIMESTAMP)
-                    ON CONFLICT(location_id) DO UPDATE SET status = excluded.status, last_updated = excluded.last_updated
-                    """
-                ),
+                """
+                INSERT INTO LocationStatus(location_id, status, last_updated)
+                VALUES (:lid, :status, CURRENT_TIMESTAMP)
+                ON CONFLICT(location_id) DO UPDATE
+                    SET status = excluded.status, last_updated = excluded.last_updated
+                """,
                 {"lid": loc_id, "status": status},
             )
 
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+    # Return the updated status table as a DataFrame
     return _to_df(
         """
-        SELECT ls.location_id, l.name AS location_name, ROUND(AVG(r.rating), 2) AS avg_rating, ls.status, ls.last_updated
+        SELECT
+            ls.location_id,
+            l.name AS location_name,
+            ROUND(AVG(r.rating), 2) AS avg_rating,
+            ls.status,
+            ls.last_updated
         FROM LocationStatus ls
         JOIN Locations l ON ls.location_id = l.location_id
         LEFT JOIN Reviews r ON l.location_id = r.location_id
@@ -674,40 +756,46 @@ def flag_low_rated_locations(threshold: float = 3.5) -> pd.DataFrame:
 
 
 def parameterized_category_cursor(category_id: int, threshold: float = 4.0) -> pd.DataFrame:
-    """Parameterized cursor analogue scoped to one category."""
-    with engine.connect() as conn:
-        cursor_result = conn.execute(
-            text(
-                """
-                SELECT
-                    l.location_id,
-                    l.name AS location_name,
-                    c.category_name,
-                    ROUND(AVG(r.rating), 2) AS avg_rating,
-                    COUNT(r.review_id) AS review_count
-                FROM Locations l
-                JOIN Categories c ON l.category_id = c.category_id
-                LEFT JOIN Reviews r ON l.location_id = r.location_id
-                WHERE l.category_id = :category_id
-                GROUP BY l.location_id, l.name, c.category_name
-                ORDER BY l.name
-                """
-            ),
+    """Parameterized cursor analogue — scoped to a single category with a threshold.
+
+    Simulates a parameterized explicit cursor by binding :category_id and
+    then iterating the result set row-by-row to apply a classification decision.
+    """
+    conn = get_conn()
+    try:
+        cursor = conn.execute(
+            """
+            SELECT
+                l.location_id,
+                l.name AS location_name,
+                c.category_name,
+                ROUND(AVG(r.rating), 2) AS avg_rating,
+                COUNT(r.review_id)      AS review_count
+            FROM Locations l
+            JOIN Categories c ON l.category_id = c.category_id
+            LEFT JOIN Reviews r ON l.location_id = r.location_id
+            WHERE l.category_id = :category_id
+            GROUP BY l.location_id, l.name, c.category_name
+            ORDER BY l.name
+            """,
             {"category_id": category_id},
         )
-        rows = cursor_result.fetchall()
+        rows = cursor.fetchall()
+    finally:
+        conn.close()
 
+    # Row-by-row classification (cursor loop body)
     results: list[dict[str, Any]] = []
     for row in rows:
-        avg_rating = float(row[3]) if row[3] is not None else None
+        avg_rating     = float(row[3]) if row[3] is not None else None
         classification = "highlight" if avg_rating is not None and avg_rating >= threshold else "watch"
         results.append(
             {
-                "location_id": row[0],
-                "location_name": row[1],
-                "category_name": row[2],
-                "avg_rating": avg_rating,
-                "review_count": int(row[4]),
+                "location_id":     row[0],
+                "location_name":   row[1],
+                "category_name":   row[2],
+                "avg_rating":      avg_rating,
+                "review_count":    int(row[4]),
                 "cursor_decision": classification,
             }
         )
@@ -715,11 +803,27 @@ def parameterized_category_cursor(category_id: int, threshold: float = 4.0) -> p
     return pd.DataFrame(results)
 
 
+# ── Audit Log Queries ──────────────────────────────────────────────────────────
+
 def get_review_logs() -> pd.DataFrame:
-    return _to_df("SELECT rl.log_id, rl.review_id, rl.action, rl.old_rating, rl.new_rating, rl.log_time FROM ReviewLogs rl ORDER BY rl.log_time DESC, rl.log_id DESC")
+    return _to_df(
+        """
+        SELECT rl.log_id, rl.review_id, rl.action, rl.old_rating, rl.new_rating, rl.log_time
+        FROM ReviewLogs rl
+        ORDER BY rl.log_time DESC, rl.log_id DESC
+        """
+    )
+
 
 def get_location_status() -> pd.DataFrame:
-    return _to_df("SELECT ls.location_id, l.name AS location_name, ls.status, ls.last_updated FROM LocationStatus ls JOIN Locations l ON ls.location_id = l.location_id ORDER BY ls.status DESC, l.name")
+    return _to_df(
+        """
+        SELECT ls.location_id, l.name AS location_name, ls.status, ls.last_updated
+        FROM LocationStatus ls
+        JOIN Locations l ON ls.location_id = l.location_id
+        ORDER BY ls.status DESC, l.name
+        """
+    )
 
 
 def get_deleted_location_audit() -> pd.DataFrame:
