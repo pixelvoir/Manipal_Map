@@ -1,0 +1,16 @@
+# Python environment artifacts
+venv/
+__pycache__/
+*.pyc
+
+# Runtime/output artifacts
+query.log
+uploaded_images/*
+!uploaded_images/.gitkeep
+
+# Editor and temp files
+~$*.docx
+
+# Keep seed/data sources tracked
+!sample_data.py
+!manipal_map.db

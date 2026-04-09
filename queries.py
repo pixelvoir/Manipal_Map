@@ -94,20 +94,33 @@ def add_location(
     description: str,
     latitude: float,
     longitude: float,
+    created_by: int | None = None,
 ) -> None:
+    params = {
+        "name": name.strip(),
+        "category_id": category_id,
+        "address": address.strip(),
+        "description": description.strip(),
+        "latitude": latitude,
+        "longitude": longitude,
+        "created_by": created_by,
+    }
+    if created_by is None:
+        _execute(
+            """
+            INSERT INTO Locations(name, category_id, address, description, latitude, longitude)
+            VALUES (:name, :category_id, :address, :description, :latitude, :longitude)
+            """,
+            params,
+        )
+        return
+
     _execute(
         """
-        INSERT INTO Locations(name, category_id, address, description, latitude, longitude)
-        VALUES (:name, :category_id, :address, :description, :latitude, :longitude)
+        INSERT INTO Locations(name, category_id, address, description, latitude, longitude, created_by, created_at)
+        VALUES (:name, :category_id, :address, :description, :latitude, :longitude, :created_by, CURRENT_TIMESTAMP)
         """,
-        {
-            "name": name.strip(),
-            "category_id": category_id,
-            "address": address.strip(),
-            "description": description.strip(),
-            "latitude": latitude,
-            "longitude": longitude,
-        },
+        params,
     )
 
 
@@ -117,6 +130,8 @@ def update_location(
     category_id: int,
     address: str,
     description: str,
+    latitude: float | None = None,
+    longitude: float | None = None,
 ) -> None:
     """Explicitly updates core fields of a location."""
     _execute(
@@ -125,7 +140,9 @@ def update_location(
         SET name        = :name,
             category_id = :category_id,
             address     = :address,
-            description = :description
+            description = :description,
+            latitude    = COALESCE(:latitude, latitude),
+            longitude   = COALESCE(:longitude, longitude)
         WHERE location_id = :location_id
         """,
         {
@@ -133,6 +150,8 @@ def update_location(
             "category_id": category_id,
             "address": address.strip(),
             "description": description.strip(),
+            "latitude": latitude,
+            "longitude": longitude,
             "location_id": location_id,
         },
     )
@@ -157,7 +176,8 @@ def get_locations() -> pd.DataFrame:
             l.address,
             l.description,
             l.latitude,
-            l.longitude
+            l.longitude,
+            l.created_by
         FROM Locations l
         LEFT JOIN Categories c ON l.category_id = c.category_id
         ORDER BY l.name
@@ -178,7 +198,8 @@ def search_locations_by_category(category_id: int | None) -> pd.DataFrame:
             l.address,
             l.description,
             l.latitude,
-            l.longitude
+            l.longitude,
+            l.created_by
         FROM Locations l
         JOIN Categories c ON l.category_id = c.category_id
         WHERE l.category_id = :category_id
@@ -200,14 +221,13 @@ def get_location_details(location_id: int) -> pd.DataFrame:
             l.description,
             l.latitude,
             l.longitude,
-            ROUND(AVG(r.rating), 2) AS avg_rating,
-            COUNT(r.review_id)      AS review_count
+            l.created_by,
+            ROUND((SELECT AVG(r.rating) FROM Reviews r WHERE r.location_id = l.location_id), 2) AS avg_rating,
+            (SELECT COUNT(*) FROM Reviews r WHERE r.location_id = l.location_id) AS review_count,
+            (SELECT COUNT(*) FROM Favorites f WHERE f.location_id = l.location_id) AS favorite_count
         FROM Locations l
         LEFT JOIN Categories c ON l.category_id = c.category_id
-        LEFT JOIN Reviews r     ON l.location_id = r.location_id
         WHERE l.location_id = :location_id
-        GROUP BY l.location_id, l.name, l.category_id, c.category_name,
-                 l.address, l.description, l.latitude, l.longitude
         """,
         {"location_id": location_id},
     )
@@ -309,19 +329,195 @@ def add_favorite(user_id: int, location_id: int) -> None:
     )
 
 
+def remove_favorite(user_id: int, location_id: int) -> None:
+    _execute(
+        "DELETE FROM Favorites WHERE user_id = :user_id AND location_id = :location_id",
+        {"user_id": user_id, "location_id": location_id},
+    )
+
+
+def get_favorite_location_ids(user_id: int) -> list[int]:
+    df = _to_df(
+        "SELECT location_id FROM Favorites WHERE user_id = :user_id ORDER BY location_id",
+        {"user_id": user_id},
+    )
+    if df.empty:
+        return []
+    return [int(v) for v in df["location_id"].tolist()]
+
+
 # ── Images ─────────────────────────────────────────────────────────────────────
 
-def add_image(location_id: int, local_file_url: str) -> None:
+def add_image(location_id: int, local_file_url: str, uploaded_by: int | None = None) -> None:
+    columns = "location_id, image_url, uploaded_by"
+    if uploaded_by is None:
+        columns = "location_id, image_url"
     _execute(
-        "INSERT INTO Images(location_id, image_url) VALUES (:location_id, :image_url)",
-        {"location_id": location_id, "image_url": local_file_url},
+        f"INSERT INTO Images({columns}{', uploaded_at' if uploaded_by is not None else ''}) VALUES (:location_id, :image_url{', :uploaded_by' if uploaded_by is not None else ''}{', CURRENT_TIMESTAMP' if uploaded_by is not None else ''})",
+        {"location_id": location_id, "image_url": local_file_url, "uploaded_by": uploaded_by},
     )
 
 
 def get_images_for_location(location_id: int) -> pd.DataFrame:
     return _to_df(
-        "SELECT image_id, image_url FROM Images WHERE location_id = :location_id ORDER BY image_id DESC",
+        "SELECT image_id, image_url, uploaded_by FROM Images WHERE location_id = :location_id ORDER BY image_id DESC",
         {"location_id": location_id},
+    )
+
+
+def get_locations_added_by_user(user_id: int) -> pd.DataFrame:
+    return _to_df(
+        """
+        SELECT
+            l.location_id,
+            l.name AS location_name,
+            c.category_name,
+            l.address,
+            l.created_at
+        FROM Locations l
+        LEFT JOIN Categories c ON l.category_id = c.category_id
+        WHERE l.created_by = :user_id
+        ORDER BY l.created_at DESC, l.location_id DESC
+        """,
+        {"user_id": user_id},
+    )
+
+
+def get_reviews_by_user(user_id: int) -> pd.DataFrame:
+    return _to_df(
+        """
+        SELECT
+            r.review_id,
+            r.location_id,
+            l.name AS location_name,
+            r.rating,
+            r.comment,
+            r.date
+        FROM Reviews r
+        JOIN Locations l ON r.location_id = l.location_id
+        WHERE r.user_id = :user_id
+        ORDER BY r.date DESC, r.review_id DESC
+        """,
+        {"user_id": user_id},
+    )
+
+
+def get_images_uploaded_by_user(user_id: int) -> pd.DataFrame:
+    return _to_df(
+        """
+        SELECT
+            i.image_id,
+            i.location_id,
+            l.name AS location_name,
+            i.image_url,
+            i.uploaded_at
+        FROM Images i
+        JOIN Locations l ON i.location_id = l.location_id
+        WHERE i.uploaded_by = :user_id
+        ORDER BY i.uploaded_at DESC, i.image_id DESC
+        """,
+        {"user_id": user_id},
+    )
+
+
+def get_user_contribution_summary(user_id: int) -> pd.DataFrame:
+    return _to_df(
+        """
+        SELECT
+            (SELECT COUNT(*) FROM Locations WHERE created_by = :user_id) AS locations_added,
+            (SELECT COUNT(*) FROM Reviews   WHERE user_id = :user_id) AS reviews_written,
+            (SELECT COUNT(*) FROM Images    WHERE uploaded_by = :user_id) AS images_uploaded,
+            (SELECT COUNT(*) FROM Favorites WHERE user_id = :user_id) AS favorites_saved
+        """,
+        {"user_id": user_id},
+    )
+
+
+def get_location_spotlight_insights(location_id: int) -> pd.DataFrame:
+    return _to_df(
+        """
+        WITH base AS (
+            SELECT
+                l.location_id,
+                l.category_id,
+                l.name AS location_name,
+                c.category_name,
+                ROUND((SELECT AVG(r.rating) FROM Reviews r WHERE r.location_id = l.location_id), 2) AS avg_rating,
+                (SELECT COUNT(*) FROM Reviews r WHERE r.location_id = l.location_id) AS review_count,
+                (SELECT COUNT(*) FROM Favorites f WHERE f.location_id = l.location_id) AS favorite_count,
+                (SELECT COUNT(*) FROM Images i WHERE i.location_id = l.location_id) AS image_count
+            FROM Locations l
+            LEFT JOIN Categories c ON l.category_id = c.category_id
+            WHERE l.location_id = :location_id
+        ),
+        ranked AS (
+            SELECT
+                l.location_id,
+                RANK() OVER (
+                    PARTITION BY l.category_id
+                    ORDER BY
+                        COALESCE((SELECT AVG(r.rating) FROM Reviews r WHERE r.location_id = l.location_id), 0) DESC,
+                        (SELECT COUNT(*) FROM Reviews r WHERE r.location_id = l.location_id) DESC,
+                        (SELECT COUNT(*) FROM Favorites f WHERE f.location_id = l.location_id) DESC
+                ) AS category_rank
+            FROM Locations l
+            WHERE l.category_id = (SELECT category_id FROM Locations WHERE location_id = :location_id)
+        ),
+        trend_source AS (
+            SELECT
+                rating,
+                ROW_NUMBER() OVER (ORDER BY date DESC, review_id DESC) AS rn
+            FROM Reviews
+            WHERE location_id = :location_id
+        ),
+        trend AS (
+            SELECT
+                ROUND(AVG(CASE WHEN rn <= 3 THEN rating END), 2) AS recent_avg,
+                ROUND(AVG(CASE WHEN rn BETWEEN 4 AND 6 THEN rating END), 2) AS previous_avg
+            FROM trend_source
+        )
+        SELECT
+            base.location_id,
+            base.location_name,
+            base.category_name,
+            base.avg_rating,
+            base.review_count,
+            base.favorite_count,
+            base.image_count,
+            ranked.category_rank,
+            trend.recent_avg,
+            trend.previous_avg,
+            CASE
+                WHEN trend.recent_avg IS NULL OR trend.previous_avg IS NULL THEN 'No trend yet'
+                WHEN trend.recent_avg > trend.previous_avg THEN 'Improving'
+                WHEN trend.recent_avg < trend.previous_avg THEN 'Softening'
+                ELSE 'Stable'
+            END AS rating_trend
+        FROM base
+        LEFT JOIN ranked ON ranked.location_id = base.location_id
+        CROSS JOIN trend
+        """,
+        {"location_id": location_id},
+    )
+
+
+def locations_popular_but_underrated(min_reviews: int = 2, max_avg: float = 4.0) -> pd.DataFrame:
+    return _to_df(
+        """
+        SELECT
+            l.location_id,
+            l.name AS location_name,
+            ROUND(AVG(r.rating), 2) AS avg_rating,
+            COUNT(r.review_id) AS review_count,
+            (SELECT COUNT(*) FROM Favorites f WHERE f.location_id = l.location_id) AS favorite_count
+        FROM Locations l
+        JOIN Reviews r ON l.location_id = r.location_id
+        GROUP BY l.location_id, l.name
+        HAVING COUNT(r.review_id) >= :min_reviews
+           AND ROUND(AVG(r.rating), 2) < :max_avg
+        ORDER BY review_count DESC, avg_rating ASC, l.name
+        """,
+        {"min_reviews": min_reviews, "max_avg": max_avg},
     )
 
 
@@ -374,6 +570,41 @@ def most_reviewed_locations() -> pd.DataFrame:
         JOIN Locations l ON rc.location_id = l.location_id
         ORDER BY rc.total_reviews DESC, l.name
         """
+    )
+
+
+def most_favorited_locations(min_favorites: int = 1) -> pd.DataFrame:
+    return _to_df(
+        """
+        SELECT
+            l.location_id,
+            l.name AS location_name,
+            COUNT(f.user_id) AS favorite_count
+        FROM Locations l
+        JOIN Favorites f ON l.location_id = f.location_id
+        GROUP BY l.location_id, l.name
+        HAVING COUNT(f.user_id) >= :min_favorites
+        ORDER BY favorite_count DESC, l.name
+        """,
+        {"min_favorites": min_favorites},
+    )
+
+
+def recently_reviewed_locations(limit: int = 50) -> pd.DataFrame:
+    return _to_df(
+        """
+        SELECT
+            l.location_id,
+            l.name AS location_name,
+            MAX(r.date) AS last_review_date,
+            COUNT(r.review_id) AS review_count
+        FROM Locations l
+        JOIN Reviews r ON l.location_id = r.location_id
+        GROUP BY l.location_id, l.name
+        ORDER BY last_review_date DESC, review_count DESC, l.name
+        LIMIT :limit
+        """,
+        {"limit": limit},
     )
 
 

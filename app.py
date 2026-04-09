@@ -5,15 +5,18 @@ from __future__ import annotations
 from datetime import date
 import hashlib
 import html
+import json
 import os
 import secrets
+import time
 
 import folium
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 from streamlit_folium import st_folium
 
-from db import init_db
+from db import init_db, reset_query_log
 from queries import (
     active_but_not_top_rated,
     add_category,
@@ -32,18 +35,26 @@ from queries import (
     get_category_activity_summary,
     get_categories,
     get_deleted_location_audit,
+    get_images_uploaded_by_user,
     get_images_for_location,
+    get_favorite_location_ids,
     get_location_details,
+    get_location_spotlight_insights,
     get_location_status,
     get_locations,
+    get_locations_added_by_user,
+    get_reviews_by_user,
     get_review_logs,
     get_reviews_for_location,
     get_user_by_email,
+    get_user_contribution_summary,
     location_rating_bands,
     locations_above_all_in_category,
     locations_union_high_activity,
+    most_favorited_locations,
     most_reviewed_locations,
     parameterized_category_cursor,
+    remove_favorite,
     register_user,
     search_locations_by_category,
     top_rated_locations,
@@ -64,7 +75,7 @@ st.set_page_config(page_title="Manipal Atlas", layout="wide")
 st.markdown(
     """
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
 
     :root {
         --bg:            #F4F5F2;
@@ -90,18 +101,44 @@ st.markdown(
 
     .stApp {
         background: var(--bg);
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
         color: var(--text);
         font-size: 14px;
         line-height: 1.5;
         -webkit-font-smoothing: antialiased;
     }
-    section.main > div.block-container {
-        padding-top: 1.25rem;
+    section.main > div.block-container,
+    div[data-testid="stMainBlockContainer"],
+    [data-testid="stMain"] > div,
+    [data-testid="stMain"] > div > div,
+    [data-testid="stMain"] .block-container {
+        padding-top: 0 !important;
+        margin-top: 0 !important;
         padding-bottom: 2rem;
         max-width: 1480px;
     }
-    #MainMenu, footer, header[data-testid="stHeader"] { visibility: hidden; }
+    #MainMenu, footer, header[data-testid="stHeader"], [data-testid="stAppHeader"] { display: none !important; }
+    [data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stStatusWidget"] { display: none; }
+    [data-testid="stAppViewContainer"] {
+        padding-top: 0 !important;
+        margin-top: 0 !important;
+    }
+    [data-testid="stAppViewContainer"] > .main {
+        padding-top: 0 !important;
+        margin-top: 0 !important;
+    }
+    [data-testid="stAppViewContainer"] > .main > div {
+        padding-top: 0 !important;
+        margin-top: 0 !important;
+    }
+    [data-testid="stAppViewContainer"] .main .block-container {
+        padding-top: 0 !important;
+        margin-top: 0 !important;
+    }
+    [data-testid="stAppViewContainer"] [data-testid="stMain"] {
+        padding-top: 0 !important;
+        margin-top: -0.35rem !important;
+    }
 
     /* ── Sidebar ─────────────────────────────────────────── */
     [data-testid="stSidebar"] {
@@ -136,7 +173,7 @@ st.markdown(
         margin: 0;
         letter-spacing: -0.01em;
         line-height: 1.3;
-        font-family: 'Inter', sans-serif;
+        font-family: 'Space Grotesk', sans-serif;
     }
     .hero-copy, .panel-copy, .muted-copy {
         font-size: 0.82rem;
@@ -202,7 +239,7 @@ st.markdown(
         font-weight: 700;
         color: var(--text);
         margin: 0;
-        font-family: 'Inter', sans-serif;
+        font-family: 'Space Grotesk', sans-serif;
     }
     .surface-copy {
         font-size: 0.8rem;
@@ -231,7 +268,7 @@ st.markdown(
         color: var(--text);
         margin: 0.1rem 0 0;
         line-height: 1.3;
-        font-family: 'Inter', sans-serif;
+        font-family: 'Space Grotesk', sans-serif;
     }
     .inspector-meta {
         display: grid;
@@ -300,6 +337,190 @@ st.markdown(
     .review-author { font-weight: 600; font-size: 0.86rem; color: var(--text); }
     .review-date   { font-size: 0.78rem; color: var(--text-3); }
     .review-comment { font-size: 0.84rem; color: var(--text-2); margin: 0.25rem 0 0; line-height: 1.5; }
+
+    .spotlight-shell {
+        border: 1px solid var(--accent-line);
+        background: linear-gradient(165deg, #ffffff 0%, #f4fbf6 100%);
+        border-radius: var(--r-md);
+        box-shadow: var(--shadow-md);
+        padding: 0.9rem 0.95rem;
+        margin-bottom: 0.9rem;
+    }
+
+    .spotlight-topline {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 0.75rem;
+        margin-bottom: 0.75rem;
+    }
+    .spotlight-badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        margin-top: 0.6rem;
+    }
+    .insight-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.55rem;
+        margin: 0.8rem 0 0.2rem;
+    }
+    .insight-card {
+        background: rgba(255,255,255,0.84);
+        border: 1px solid var(--border);
+        border-radius: var(--r-sm);
+        padding: 0.65rem 0.7rem;
+    }
+    .insight-label {
+        font-size: 0.64rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--text-3);
+        font-weight: 700;
+        margin-bottom: 0.2rem;
+    }
+    .insight-value {
+        font-size: 0.92rem;
+        font-weight: 700;
+        color: var(--text);
+        line-height: 1.25;
+    }
+    .insight-note {
+        font-size: 0.76rem;
+        color: var(--text-2);
+        margin-top: 0.2rem;
+    }
+    .insight-card-wide {
+        grid-column: 1 / -1;
+    }
+    .inline-feedback {
+        margin: 0.35rem 0 0.6rem;
+        padding: 0.5rem 0.65rem;
+        border-radius: var(--r-sm);
+        border: 1px solid var(--border);
+        font-size: 0.81rem;
+        font-weight: 600;
+    }
+    .inline-feedback.success {
+        background: #eaf6ee;
+        border-color: #bfdcc8;
+        color: #1d6a41;
+    }
+    .inline-feedback.error {
+        background: #fbecec;
+        border-color: #edc1c1;
+        color: #8d1f1f;
+    }
+
+    .profile-shell {
+        display: grid;
+        grid-template-columns: 1.1fr 1.3fr;
+        gap: 1rem;
+        align-items: start;
+    }
+    .profile-stack {
+        display: grid;
+        gap: 0.8rem;
+    }
+    .profile-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--r-md);
+        box-shadow: var(--shadow-sm);
+        padding: 0.85rem 0.95rem;
+    }
+    .profile-card-title {
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: var(--text);
+        margin: 0 0 0.35rem;
+    }
+    .profile-card-copy {
+        font-size: 0.82rem;
+        color: var(--text-2);
+        margin: 0;
+    }
+    .gallery-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.65rem;
+    }
+    .gallery-placeholder {
+        border: 1px dashed var(--border-strong);
+        border-radius: var(--r-md);
+        background: var(--surface-alt);
+        min-height: 160px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--text-2);
+        font-size: 0.82rem;
+        padding: 0.8rem;
+        text-align: center;
+    }
+
+    .auth-shell {
+        display: grid;
+        grid-template-columns: 1.05fr 0.95fr;
+        gap: 1rem;
+        align-items: stretch;
+    }
+    .auth-visual {
+        min-height: 640px;
+        border-radius: 22px;
+        overflow: hidden;
+        box-shadow: var(--shadow-md);
+    }
+    .auth-panel {
+        background: rgba(255,255,255,0.92);
+        border: 1px solid var(--border);
+        border-radius: 22px;
+        box-shadow: var(--shadow-md);
+        padding: 1rem;
+        backdrop-filter: blur(8px);
+    }
+    .auth-panel-inner {
+        display: grid;
+        gap: 0.75rem;
+    }
+    .auth-mini {
+        font-size: 0.78rem;
+        color: var(--text-2);
+        margin: 0;
+    }
+    .transition-shell {
+        background: linear-gradient(145deg, rgba(255,255,255,0.95), rgba(234,243,238,0.95));
+        border: 1px solid var(--border);
+        border-radius: 22px;
+        box-shadow: var(--shadow-md);
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+    .preset-bar {
+        display: grid;
+        gap: 0.5rem;
+    }
+
+    .glow-shell {
+        position: relative;
+        overflow: hidden;
+        border-radius: var(--r-md);
+    }
+    .glow-shell::before {
+        content: "";
+        position: absolute;
+        inset: -60% auto auto -40%;
+        width: 220px;
+        height: 220px;
+        border-radius: 999px;
+        background: radial-gradient(circle, rgba(46, 138, 90, 0.2) 0%, rgba(46, 138, 90, 0) 65%);
+        pointer-events: none;
+        animation: driftGlow 9s ease-in-out infinite;
+    }
+    .fade-slide {
+        animation: fadeSlide 450ms ease-out;
+    }
 
     /* ── Auth pages ──────────────────────────────────────── */
     .auth-hero, .auth-title, .auth-copy { display: none; }
@@ -387,18 +608,20 @@ st.markdown(
         border: 1px solid var(--border-strong);
         border-radius: var(--r-sm);
         color: var(--text);
-        font-family: 'Inter', sans-serif;
+        font-family: 'Outfit', sans-serif;
         font-size: 0.84rem;
         font-weight: 600;
         min-height: 2.35rem;
         box-shadow: var(--shadow-sm);
-        transition: background 0.1s, border-color 0.1s;
+        transition: background 0.15s, border-color 0.15s, transform 0.15s, box-shadow 0.15s;
         letter-spacing: 0;
     }
     div[data-testid="stButton"] > button:hover,
     div[data-testid="stFormSubmitButton"] > button:hover {
         background: var(--surface-alt);
         border-color: var(--accent);
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-md);
     }
     div[data-testid="stButton"] > button[kind="primary"],
     div[data-testid="stFormSubmitButton"] > button[kind="primary"] {
@@ -425,7 +648,7 @@ st.markdown(
         background: var(--surface) !important;
         box-shadow: none !important;
         color: var(--text) !important;
-        font-family: 'Inter', sans-serif !important;
+        font-family: 'Outfit', sans-serif !important;
         font-size: 0.84rem !important;
     }
     .stTextInput input,
@@ -467,7 +690,41 @@ st.markdown(
         color: var(--text) !important;
         font-size: 0.82rem !important;
         font-weight: 600 !important;
-        font-family: 'Inter', sans-serif !important;
+        font-family: 'Outfit', sans-serif !important;
+    }
+
+    .main-title {
+        margin: 0.18rem 0 0;
+        font-size: 1.65rem;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        color: var(--text);
+        font-family: 'Space Grotesk', sans-serif;
+    }
+    .title-support {
+        margin: 0.35rem 0 0;
+        color: var(--text-2);
+        font-size: 0.86rem;
+        max-width: 76ch;
+    }
+    .status-text {
+        margin: 0.35rem 0 0;
+        color: var(--text-2);
+        font-size: 0.8rem;
+    }
+
+    @keyframes fadeSlide {
+        from { opacity: 0; transform: translateY(6px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes driftGlow {
+        0% { transform: translateX(0px) translateY(0px); }
+        50% { transform: translateX(14px) translateY(8px); }
+        100% { transform: translateX(0px) translateY(0px); }
+    }
+    @keyframes heroLift {
+        from { opacity: 0; transform: translateY(10px) scale(0.99); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
     }
 
     /* ── Misc ────────────────────────────────────────────── */
@@ -592,6 +849,99 @@ def render_page_banner(title: str, description: str, *, kicker: str, chips: list
     )
 
 
+def render_react_hero(
+        title: str,
+        subtitle: str,
+        chips: list[str],
+        *,
+        background_image: str | None = None,
+        badge: str = "Map-first experience",
+    height: int = 320,
+) -> None:
+        title_js = json.dumps(title)
+        subtitle_js = json.dumps(subtitle)
+        chips_js = json.dumps(chips)
+        bg_js = json.dumps(background_image or "")
+        badge_js = json.dumps(badge)
+        components.html(
+                f"""
+                <div id="atlas-react-hero"></div>
+                <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+                <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+                <script>
+                    const e = React.createElement;
+                    const chips = {chips_js};
+                    const bg = {bg_js};
+                    const badge = {badge_js};
+                    function Hero() {{
+                        const [imgLoaded, setImgLoaded] = React.useState(!bg);
+                        React.useEffect(() => {{
+                            if (!bg) {{
+                                setImgLoaded(true);
+                                return;
+                            }}
+                            const img = new Image();
+                            img.onload = () => setImgLoaded(true);
+                            img.onerror = () => setImgLoaded(true);
+                            img.src = bg;
+                        }}, []);
+
+                        const style = {{
+                            position: 'relative',
+                            overflow: 'hidden',
+                            borderRadius: '22px',
+                            minHeight: '280px',
+                            padding: '22px',
+                            color: '#fff',
+                            backgroundImage: (bg && imgLoaded)
+                                ? 'linear-gradient(135deg, rgba(11,28,22,0.82), rgba(11,28,22,0.44)), url(' + bg + ')'
+                                : 'linear-gradient(135deg, #143126 0%, #2d6448 100%)',
+                            backgroundSize: 'cover',
+                            backgroundPosition: 'center, center',
+                            backgroundRepeat: 'no-repeat, no-repeat',
+                            boxShadow: '0 18px 40px rgba(0,0,0,0.15)',
+                            animation: 'heroLift 480ms ease-out'
+                        }};
+                        return e('section', {{ style }}, [
+                            e('style', {{key: 'style'}}, '@keyframes heroLift {{ from {{ opacity: 0; transform: translateY(10px) scale(0.99); }} to {{ opacity: 1; transform: translateY(0) scale(1); }} }} @keyframes heroShimmer {{ 0% {{ transform: translateX(-120%); }} 100% {{ transform: translateX(120%); }} }}'),
+                            (!imgLoaded && bg) ? e('div', {{
+                                key: 'loader',
+                                style: {{
+                                    position: 'absolute',
+                                    inset: 0,
+                                    background: 'linear-gradient(120deg, rgba(255,255,255,0.06), rgba(255,255,255,0.18), rgba(255,255,255,0.06))',
+                                    backdropFilter: 'blur(2px)',
+                                    overflow: 'hidden'
+                                }}
+                            }}, [
+                                e('div', {{
+                                    key: 'bar',
+                                    style: {{
+                                        position: 'absolute',
+                                        top: 0,
+                                        left: '-35%',
+                                        width: '35%',
+                                        height: '100%',
+                                        background: 'linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.32), rgba(255,255,255,0))',
+                                        animation: 'heroShimmer 1.15s ease-in-out infinite'
+                                    }}
+                                }})
+                            ]) : null,
+                            e('div', {{key: 'badge', style: {{fontSize: '11px', fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#d7f0e2'}}}}, badge),
+                            e('h2', {{key: 'title', style: {{margin: '0.55rem 0 0.35rem', fontFamily: 'Space Grotesk, sans-serif', fontSize: '2rem', lineHeight: 1.05}}}}, {title_js}),
+                            e('p', {{key: 'subtitle', style: {{margin: 0, maxWidth: '42rem', color: 'rgba(255,255,255,0.9)', fontSize: '0.96rem', lineHeight: 1.55}}}}, {subtitle_js}),
+                            e('div', {{key: 'chips', style: {{display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '1rem'}}}},
+                                chips.map((chip, index) => e('span', {{key: index, style: {{padding: '0.42rem 0.72rem', borderRadius: '999px', background: 'rgba(255,255,255,0.14)', border: '1px solid rgba(255,255,255,0.2)', fontSize: '0.76rem', fontWeight: 600}}}}, chip))
+                            )
+                        ]);
+                    }}
+                    ReactDOM.createRoot(document.getElementById('atlas-react-hero')).render(e(Hero));
+                </script>
+                """,
+                height=height,
+        )
+
+
 def render_metric_row(metrics: list[tuple[str, str, str]]) -> None:
     cols = st.columns(len(metrics))
     for col, (label, value, detail) in zip(cols, metrics):
@@ -625,19 +975,6 @@ def render_data_panel(title: str, description: str, df: pd.DataFrame, message: s
 
 
 def render_map(df: pd.DataFrame) -> None:
-    st.markdown(
-        """
-        <div class="flat-section">
-            <div class="surface-head">
-                <div class="panel-kicker">Live map</div>
-                <div class="surface-title">Campus and town map</div>
-                <p class="surface-copy">Select a marker to inspect the location, or click anywhere on the map to capture coordinates for a new place.</p>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
     if df.empty:
         st.info("No locations match the current filter.")
         return
@@ -667,7 +1004,9 @@ def render_map(df: pd.DataFrame) -> None:
             popup=row["name"],
         ).add_to(fmap)
 
-    result = st_folium(fmap, width=None, height=620, key="map_view")
+    st.markdown('<div class="glow-shell fade-slide">', unsafe_allow_html=True)
+    result = st_folium(fmap, width=None, height=760, key="map_view")
+    st.markdown('</div>', unsafe_allow_html=True)
 
     last_clicked = result.get("last_clicked") if result else None
     if last_clicked:
@@ -692,13 +1031,6 @@ def render_map(df: pd.DataFrame) -> None:
 
 
 def render_map_page(locations_df: pd.DataFrame, all_locations_df: pd.DataFrame, categories_df: pd.DataFrame) -> None:
-    rating_df = average_rating_per_location()
-    total_reviews = int(rating_df["review_count"].fillna(0).sum()) if not rating_df.empty else 0
-    best_avg = (
-        f"{float(rating_df['avg_rating'].dropna().max()):.1f}"
-        if not rating_df.empty and not rating_df["avg_rating"].dropna().empty
-        else "N/A"
-    )
     selected_name = "No selection"
     if st.session_state.selected_location_id:
         match = all_locations_df.loc[
@@ -715,84 +1047,240 @@ def render_map_page(locations_df: pd.DataFrame, all_locations_df: pd.DataFrame, 
         if not match.empty:
             current_filter = str(match.iloc[0])
 
-    render_page_banner(
-        "Map workspace",
-        "A cleaner front end for exploring places, managing locations, and reviewing spots around Manipal without leaving the map flow.",
-        kicker="Manipal Atlas",
-        chips=[
-            f"Filter: {current_filter}",
-            f"Selection: {selected_name}",
-            "Click map to stage coordinates",
-        ],
+    preset_label = st.session_state.get("selected_preset", "All places")
+    show_welcome_transition = bool(st.session_state.get("just_signed_in"))
+
+    title = (
+        f"Welcome back, {esc(st.session_state.logged_in_user['name'])}"
+        if show_welcome_transition
+        else "Discover Manipal, one place at a time"
     )
-    render_metric_row(
+    subtitle = (
+        "Your map is ready. Explore places, save favourites, and open a spotlight for reviews, photos, and insights."
+        if show_welcome_transition
+        else "Explore, filter, and contribute from a cleaner map-first workspace with fewer distractions."
+    )
+    render_react_hero(
+        title,
+        subtitle,
         [
-            ("Locations", str(len(all_locations_df)), "total mapped places"),
-            ("Visible", str(len(locations_df)), "currently in view"),
-            ("Categories", str(len(categories_df)), "organized location types"),
-            ("Best rating", best_avg, f"{total_reviews} reviews captured"),
-        ]
+            f"Category: {current_filter}",
+            f"Preset: {preset_label}",
+            f"Selection: {selected_name}",
+            "Tap a marker to open the spotlight",
+        ],
+        badge="Map workspace",
+        height=220,
     )
 
-    map_col, inspector_col = st.columns([1.7, 1], gap="large")
+    if show_welcome_transition:
+        # Hold the welcome hero briefly, then move to the default map hero.
+        time.sleep(1.0)
+        st.session_state.just_signed_in = False
+        st.session_state.just_signed_in_until = 0.0
+        st.rerun()
+
+    map_col, inspector_col = st.columns([2.45, 1], gap="large")
     with map_col:
         render_map(locations_df)
     with inspector_col:
         render_location_details()
 
 
-def render_auth_page() -> None:
-    render_page_banner(
-        "Account access",
-        "Sign in to contribute to the map or register a new account to manage reviews, favorites, and place details from one clean workspace.",
-        kicker="Manipal Atlas",
-        chips=["Dedicated auth page", "Map contributions", "Review management"],
+def render_profile_page() -> None:
+    if not st.session_state.logged_in_user:
+        st.session_state.current_page = "auth"
+        st.rerun()
+
+    user = st.session_state.logged_in_user
+    summary_df = get_user_contribution_summary(int(user["user_id"]))
+    summary = summary_df.iloc[0] if not summary_df.empty else None
+    locations_df = get_locations_added_by_user(int(user["user_id"]))
+    reviews_df = get_reviews_by_user(int(user["user_id"]))
+    images_df = get_images_uploaded_by_user(int(user["user_id"]))
+    review_rank_text = "Unranked"
+    reviewers_df = users_with_most_reviews()
+    if not reviewers_df.empty:
+        ranked = reviewers_df.reset_index(drop=True)
+        user_match = ranked[ranked["user_id"] == int(user["user_id"])]
+        if not user_match.empty:
+            user_pos = int(user_match.index[0]) + 1
+            user_reviews = int(user_match.iloc[0]["total_reviews"])
+            review_rank_text = f"#{user_pos} by reviews ({user_reviews})"
+
+    render_react_hero(
+        f"{esc(user['name'])}'s profile",
+        "A quick view of the places you added, the reviews you wrote, and the images you uploaded.",
+        [
+            f"Locations: {int(summary['locations_added']) if summary is not None else 0}",
+            f"Reviews: {int(summary['reviews_written']) if summary is not None else 0}",
+            f"Images: {int(summary['images_uploaded']) if summary is not None else 0}",
+            f"Review rank: {review_rank_text}",
+        ],
+        badge="Contribution hub",
+        height=240,
     )
 
+    st.markdown(
+        f'<span class="soft-chip">Review leaderboard: {esc(review_rank_text)}</span>',
+        unsafe_allow_html=True,
+    )
+
+    metric_cols = st.columns(4)
+    stats = [
+        ("Locations added", int(summary["locations_added"]) if summary is not None else 0, "places created by you"),
+        ("Reviews written", int(summary["reviews_written"]) if summary is not None else 0, "community feedback"),
+        ("Images uploaded", int(summary["images_uploaded"]) if summary is not None else 0, "photos shared"),
+        ("Favorites saved", int(summary["favorites_saved"]) if summary is not None else 0, "places bookmarked"),
+    ]
+    for col, (label, value, detail) in zip(metric_cols, stats):
+        with col:
+            st.markdown(
+                f"""
+                <div class="metric-shell">
+                    <div class="metric-label">{esc(label)}</div>
+                    <p class="metric-value">{value}</p>
+                    <p class="metric-detail">{esc(detail)}</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+    left_col, right_col = st.columns([1, 1], gap="large")
+    with left_col:
+        st.markdown('<div class="profile-card">', unsafe_allow_html=True)
+        st.markdown('<div class="profile-card-title">Locations added</div>', unsafe_allow_html=True)
+        if locations_df.empty:
+            st.info("No locations added yet.")
+        else:
+            for _, row in locations_df.iterrows():
+                st.markdown(
+                    f"""
+                    <div class="review-shell">
+                        <div class="review-header">
+                            <div>
+                                <div class="review-author">{esc(row['location_name'])}</div>
+                                <div class="review-date">{esc(row['category_name'], 'Uncategorized')} · {esc(row['created_at'], 'Recently added')}</div>
+                            </div>
+                            <span class="soft-chip">ID {int(row['location_id'])}</span>
+                        </div>
+                        <p class="review-comment">{esc(row['address'], 'No address saved.')}</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        st.markdown('<div class="profile-card" style="margin-top:0.8rem;">', unsafe_allow_html=True)
+        st.markdown('<div class="profile-card-title">Images uploaded</div>', unsafe_allow_html=True)
+        if images_df.empty:
+            st.info("No images uploaded yet.")
+        else:
+            image_cols = st.columns(2)
+            rendered = False
+            for idx, row in images_df.iterrows():
+                with image_cols[idx % len(image_cols)]:
+                    image_path = str(row["image_url"])
+                    try:
+                        if image_path.startswith("http://") or image_path.startswith("https://"):
+                            st.image(image_path, use_container_width=True)
+                            rendered = True
+                        elif os.path.exists(image_path):
+                            st.image(image_path, use_container_width=True)
+                            rendered = True
+                    except Exception:
+                        continue
+            if not rendered:
+                st.info("No images uploaded yet.")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    with right_col:
+        st.markdown('<div class="profile-card">', unsafe_allow_html=True)
+        st.markdown('<div class="profile-card-title">Reviews written</div>', unsafe_allow_html=True)
+        if reviews_df.empty:
+            st.info("No reviews written yet.")
+        else:
+            for _, row in reviews_df.iterrows():
+                comment_text = esc(row["comment"], "No comment provided.").replace("\n", "<br>")
+                st.markdown(
+                    f"""
+                    <div class="review-shell">
+                        <div class="review-header">
+                            <div>
+                                <div class="review-author">{esc(row['location_name'])}</div>
+                                <div class="review-date">{esc(row['date'], 'Unknown date')}</div>
+                            </div>
+                            <span class="soft-chip">{int(row['rating'])}/5</span>
+                        </div>
+                        <p class="review-comment">{comment_text}</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+        st.markdown('</div>', unsafe_allow_html=True)
+
+
+def render_auth_page() -> None:
     if st.session_state.logged_in_user:
-        st.success(f"You are already signed in as {st.session_state.logged_in_user['name']}.")
+        st.markdown(
+            f"""
+            <div class="transition-shell">
+                <div class="panel-kicker">Signed in already</div>
+                <h3 class="surface-title">Welcome back, {esc(st.session_state.logged_in_user['name'])}</h3>
+                <p class="surface-copy">Continue to the map, profile, or sign out if you want to switch accounts.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
         action_col1, action_col2 = st.columns(2)
         with action_col1:
-            if st.button("Go to map", type="primary", width="stretch", key="auth_go_map"):
+            if st.button("Continue to map", type="primary", width="stretch", key="auth_go_map"):
                 st.session_state.current_page = "map"
                 st.rerun()
         with action_col2:
             if st.button("Sign out", width="stretch", key="auth_sign_out"):
                 st.session_state.logged_in_user = None
+                st.session_state.current_page = "auth"
                 st.success("Signed out.")
                 st.rerun()
         return
 
-    info_col, form_col = st.columns([1.05, 1], gap="large")
+    left_col, right_col = st.columns([1.08, 0.92], gap="large")
 
-    with info_col:
-        render_section_header(
-            "Your map account",
-            kicker="Why sign in",
-            description="Accounts keep editing tools separate from the public map so the main workspace stays focused while contribution tools stay one click away.",
+    with left_col:
+        render_react_hero(
+            "Discover Manipal, one place at a time",
+            "Sign in to explore the map, save favourites, write reviews, and add new places. Registration is available if you are new here.",
+            ["Map-first", "Favourites", "Reviews", "Photos"],
+            background_image="https://images.unsplash.com/photo-1516834611397-8d633eaec5d0?auto=format&fit=crop&w=1600&q=80",
+            badge="Manipal Atlas",
         )
         st.markdown(
             """
-            <ul class="auth-feature-list">
-                <li>Add new places without leaving the map workflow.</li>
-                <li>Write and manage reviews with your own account history.</li>
-                <li>Upload location photos and save favorite spots.</li>
-            </ul>
+            <div style="margin-top:0.9rem; display:grid; gap:0.55rem;">
+                <div class="profile-card">
+                    <div class="profile-card-title">Map-first workflow</div>
+                    <p class="profile-card-copy">Browse places on the map, then open one spotlight panel for reviews, favourites, and photos.</p>
+                </div>
+                <div class="profile-card">
+                    <div class="profile-card-title">Clean contribution flow</div>
+                    <p class="profile-card-copy">Add a location, category, review, or image without exposing backend noise in the interface.</p>
+                </div>
+            </div>
             """,
             unsafe_allow_html=True,
         )
-        if st.button("Back to map", width="stretch", key="auth_back"):
-            st.session_state.current_page = "map"
-            st.rerun()
-    with form_col:
+
+    with right_col:
+        st.markdown('<div class="auth-panel">', unsafe_allow_html=True)
+        st.markdown('<div class="auth-panel-inner">', unsafe_allow_html=True)
+        st.markdown('<div class="panel-kicker">Secure access</div>', unsafe_allow_html=True)
+        st.markdown('<p class="surface-title">Sign in to continue</p>', unsafe_allow_html=True)
+        st.markdown('<p class="auth-mini">Create an account if you are new, then return to the map with your contributions saved.</p>', unsafe_allow_html=True)
+
         sign_in_tab, register_tab = st.tabs(["Sign in", "Register"])
 
         with sign_in_tab:
-            render_section_header(
-                "Return to your account",
-                kicker="Sign in",
-                description="Use your email and password to continue editing locations and reviews.",
-            )
             with st.form("login_form"):
                 email = st.text_input("Email", key="login_email", placeholder="name@example.com")
                 password = st.text_input(
@@ -812,17 +1300,14 @@ def render_auth_page() -> None:
                         "email": user["email"],
                     }
                     st.session_state.current_page = "map"
+                    st.session_state.just_signed_in = True
+                    st.session_state.just_signed_in_until = time.time() + 1.0
                     st.success("Signed in successfully.")
                     st.rerun()
                 else:
                     st.error("Invalid email or password.")
 
         with register_tab:
-            render_section_header(
-                "Create a new account",
-                kicker="Register",
-                description="Set up an account to add places, upload photos, and participate in reviews.",
-            )
             with st.form("register_form"):
                 name = st.text_input("Name", key="reg_name", placeholder="Your full name")
                 email = st.text_input("Email", key="reg_email", placeholder="name@example.com")
@@ -840,18 +1325,21 @@ def render_auth_page() -> None:
                     st.success("Registration successful. You can sign in now.")
                 except Exception as ex:
                     st.error(f"Registration failed: {ex}")
+
+        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 def render_add_category_card() -> None:
     if not st.session_state.show_add_category:
         return
 
     render_section_header(
         "Add new category",
-        kicker="Create",
-        description="Create a natural location type such as cafe, hostel, academic block, sports facility, or service point.",
+        kicker="Contribution studio",
+        description="Create a category.",
         state_key="show_add_category",
     )
     with st.form("add_category_form", clear_on_submit=True):
-        category_name = st.text_input("Category name", placeholder="e.g. Cafe, Hostel, Academic Block")
+        category_name = st.text_input("Category name", placeholder="e.g. Restaurant, Hostel, Academic Block")
         submitted = st.form_submit_button("Save category", type="primary", width="stretch")
     if submitted:
         try:
@@ -868,10 +1356,16 @@ def render_add_location_card() -> None:
     if not st.session_state.show_add_location:
         return
 
+    if st.session_state.last_clicked_coords:
+        pin_lat, pin_lng = st.session_state.last_clicked_coords
+        add_location_desc = f"Pinned coordinate: {pin_lat:.6f}, {pin_lng:.6f}"
+    else:
+        add_location_desc = "Pinned coordinate: none selected"
+
     render_section_header(
         "Add new location",
-        kicker="Create",
-        description="Add a place with a clear name, category, address, and map coordinates. Clicking the map prefills latitude and longitude.",
+        kicker="Contribution studio",
+        description=add_location_desc,
         state_key="show_add_location",
     )
     if not require_login("add a location"):
@@ -905,7 +1399,15 @@ def render_add_location_card() -> None:
 
     if submitted:
         try:
-            add_location(name, int(category_id), address, description, float(latitude), float(longitude))
+            add_location(
+                name,
+                int(category_id),
+                address,
+                description,
+                float(latitude),
+                float(longitude),
+                created_by=int(st.session_state.logged_in_user["user_id"]),
+            )
             st.success("Location added.")
             st.session_state.show_add_location = False
             st.session_state.data_version += 1
@@ -921,8 +1423,7 @@ def render_location_details() -> None:
             <section class="empty-shell">
                 <div class="panel-kicker">Inspector</div>
                 <div class="empty-title">Select a place on the map</div>
-                <p class="empty-copy">The right panel becomes a location inspector with overview details, gallery uploads, and review controls as soon as you choose a marker.</p>
-                <span class="soft-chip">Tip: click the map first, then use Add New Location to prefill coordinates.</span>
+                <p class="empty-copy">Open any marker to see a clearer spotlight with insights, favourites, reviews, and photos.</p>
             </section>
             """,
             unsafe_allow_html=True,
@@ -939,35 +1440,49 @@ def render_location_details() -> None:
     loc = details_df.iloc[0]
     avg_text = f"{float(loc['avg_rating']):.1f}" if pd.notna(loc["avg_rating"]) else "N/A"
     review_total = int(loc["review_count"]) if pd.notna(loc["review_count"]) else 0
+    favorite_total = int(loc["favorite_count"]) if pd.notna(loc.get("favorite_count")) else 0
     category_name = esc(loc["category_name"], "Uncategorized")
     address_text = esc(loc["address"], "Address not added yet.")
     description_text = esc(loc["description"], "No description has been provided for this location yet.")
     loc_name = esc(loc["name"], "Unknown location")
-    latitude = float(loc["latitude"]) if pd.notna(loc["latitude"]) else 0.0
-    longitude = float(loc["longitude"]) if pd.notna(loc["longitude"]) else 0.0
+    insights_df = get_location_spotlight_insights(loc_id)
+    insight = insights_df.iloc[0] if not insights_df.empty else None
+    rank_text = f"#{int(insight['category_rank'])}" if insight is not None and pd.notna(insight["category_rank"]) else "N/A"
+    is_favorited = False
+    if st.session_state.logged_in_user:
+        current_user_id = int(st.session_state.logged_in_user["user_id"])
+        is_favorited = loc_id in get_favorite_location_ids(current_user_id)
 
     st.markdown(
         f"""
-        <div class="flat-section">
-            <div class="surface-head">
-                <div class="panel-kicker">Selected place</div>
-                <h3 class="inspector-title">{loc_name}</h3>
-                <p class="muted-copy">{description_text}</p>
-            </div>
-            <div class="hero-meta">
-                <span class="soft-chip">{category_name}</span>
-                <span class="soft-chip">Avg rating {esc(avg_text)}</span>
-                <span class="soft-chip">{review_total} reviews</span>
-                <span class="soft-chip">ID {loc_id}</span>
-            </div>
-            <div class="inspector-meta">
-                <div class="meta-block">
-                    <div class="meta-label">Address</div>
-                    <div class="meta-value">{address_text}</div>
+        <div class="spotlight-shell fade-slide">
+            <div class="spotlight-topline">
+                <div>
+                    <div class="panel-kicker">Location spotlight</div>
+                    <h3 class="inspector-title">{loc_name}</h3>
+                    <p class="muted-copy">{description_text}</p>
                 </div>
-                <div class="meta-block">
-                    <div class="meta-label">Coordinates</div>
-                    <div class="meta-value">{latitude:.5f}, {longitude:.5f}</div>
+                <span class="soft-chip">{category_name}</span>
+            </div>
+            <div class="spotlight-badges">
+                <span class="soft-chip">Avg {esc(avg_text)}</span>
+                <span class="soft-chip">{review_total} reviews</span>
+            </div>
+            <div class="insight-grid">
+                <div class="insight-card">
+                    <div class="insight-label">Category rank</div>
+                    <div class="insight-value">{rank_text}</div>
+                    <div class="insight-note">Compared with places in {category_name.lower()}.</div>
+                </div>
+                <div class="insight-card">
+                    <div class="insight-label">Favourite count</div>
+                    <div class="insight-value">{favorite_total}</div>
+                    <div class="insight-note">Saved by the community.</div>
+                </div>
+                <div class="insight-card insight-card-wide">
+                    <div class="insight-label">Address</div>
+                    <div class="insight-value" style="font-size:0.84rem; line-height:1.35;">{address_text}</div>
+                    <div class="insight-note">Use manage location to edit details.</div>
                 </div>
             </div>
         </div>
@@ -979,30 +1494,37 @@ def render_location_details() -> None:
 
     with overview_tab:
         st.markdown('<p class="section-label">Quick actions</p>', unsafe_allow_html=True)
-        action_col1, action_col2 = st.columns(2)
-        with action_col1:
-            if st.button("Save favorite", key="save_fav_btn", width="stretch"):
-                if require_login("add to favorites"):
-                    try:
-                        add_favorite(int(st.session_state.logged_in_user["user_id"]), loc_id)
-                        st.success("Added to favorites.")
-                    except Exception as ex:
-                        st.error(f"Could not add favorite: {ex}")
-        with action_col2:
-            if st.session_state.logged_in_user:
-                if st.button("Manage location", key="toggle_manage_loc", width="stretch"):
-                    st.session_state.show_manage_loc = not st.session_state.get("show_manage_loc", False)
+        fav_label = "Remove favourite" if is_favorited else "Save favourite"
+        fav_type = "secondary" if is_favorited else "primary"
+        if st.button(fav_label, key="toggle_fav_btn", width="stretch", type=fav_type):
+            if require_login("manage favourites"):
+                try:
+                    user_id = int(st.session_state.logged_in_user["user_id"])
+                    if is_favorited:
+                        remove_favorite(user_id, loc_id)
+                        st.session_state.spotlight_feedback = ("success", "Removed from favourites.")
+                    else:
+                        add_favorite(user_id, loc_id)
+                        st.session_state.spotlight_feedback = ("success", "Added to favourites.")
+                    st.session_state.data_version += 1
+                    st.rerun()
+                except Exception as ex:
+                    st.session_state.spotlight_feedback = ("error", f"Could not update favourite: {ex}")
+
+        feedback = st.session_state.get("spotlight_feedback")
+        if feedback:
+            fb_type, fb_text = feedback
+            safe_type = "success" if fb_type == "success" else "error"
+            st.markdown(
+                f'<div class="inline-feedback {safe_type}">{esc(str(fb_text))}</div>',
+                unsafe_allow_html=True,
+            )
+
+        if st.session_state.logged_in_user:
+            if st.button("Manage location", key="toggle_manage_loc", width="stretch"):
+                st.session_state.show_manage_loc = not st.session_state.get("show_manage_loc", False)
 
         st.markdown('<hr class="panel-divider">', unsafe_allow_html=True)
-        st.markdown(
-            """
-            <div class="meta-block">
-                <div class="meta-label">About this location</div>
-                <div class="meta-value">Use this inspector to update address details, add it to favorites, upload photos, or manage reviews without losing map context.</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
 
         if st.session_state.get("show_manage_loc", False) and st.session_state.logged_in_user:
             with st.expander("Update or delete this location", expanded=True):
@@ -1032,10 +1554,27 @@ def render_location_details() -> None:
                             u_addr = st.text_input("Address", value=str(loc["address"]) if pd.notna(loc["address"]) else "")
 
                         u_desc = st.text_area("Description", value=str(loc["description"]) if pd.notna(loc["description"]) else "")
+                        update_coords = st.checkbox("Update coordinates", value=False)
+                        u_lat = None
+                        u_lng = None
+                        if update_coords:
+                            coord_col1, coord_col2 = st.columns(2)
+                            with coord_col1:
+                                u_lat = st.number_input(
+                                    "Latitude",
+                                    value=float(loc["latitude"]) if pd.notna(loc["latitude"]) else 13.3520,
+                                    format="%.6f",
+                                )
+                            with coord_col2:
+                                u_lng = st.number_input(
+                                    "Longitude",
+                                    value=float(loc["longitude"]) if pd.notna(loc["longitude"]) else 74.7920,
+                                    format="%.6f",
+                                )
                         sub_upd = st.form_submit_button("Save changes", type="primary")
 
                     if sub_upd:
-                        update_location(loc_id, u_name, int(u_cat), u_addr, u_desc)
+                        update_location(loc_id, u_name, int(u_cat), u_addr, u_desc, u_lat, u_lng)
                         st.success("Location updated successfully.")
                         st.session_state.data_version += 1
                         st.rerun()
@@ -1056,11 +1595,11 @@ def render_location_details() -> None:
                 type=["png", "jpg", "jpeg"],
                 key="loc_img_upload",
             )
-            if upl_file is not None and st.button("Save uploaded image", key="save_uploaded_image", width="stretch"):
+            if upl_file is not None and st.button("Save uploaded image", key="save_uploaded_image", width="stretch", type="primary"):
                 filepath = os.path.join(UPLOAD_DIR, upl_file.name)
                 with open(filepath, "wb") as file_obj:
                     file_obj.write(upl_file.getbuffer())
-                add_image(loc_id, filepath)
+                add_image(loc_id, filepath, uploaded_by=int(st.session_state.logged_in_user["user_id"]))
                 st.success(f"Image {upl_file.name} uploaded successfully.")
                 st.session_state.data_version += 1
                 st.rerun()
@@ -1070,17 +1609,31 @@ def render_location_details() -> None:
         images_df = get_images_for_location(loc_id)
         if not images_df.empty:
             img_cols = st.columns(min(len(images_df), 2))
+            rendered = False
             for idx, row in images_df.iterrows():
                 with img_cols[idx % max(len(img_cols), 1)]:
-                    st.image(row["image_url"], width="stretch", caption=f"Image {row['image_id']}")
+                    image_url = str(row["image_url"])
+                    try:
+                        if image_url.startswith("http://") or image_url.startswith("https://"):
+                            st.image(image_url, use_container_width=True)
+                            rendered = True
+                        elif os.path.exists(image_url):
+                            st.image(image_url, use_container_width=True)
+                            rendered = True
+                    except Exception:
+                        continue
+            if not rendered:
+                st.info("No images uploaded yet.")
         else:
             st.info("No images uploaded yet.")
 
     with reviews_tab:
         st.markdown('<p class="section-label">Community reviews</p>', unsafe_allow_html=True)
-        if st.button("Write review", key="open_review_btn", type="primary", width="stretch"):
-            if require_login("add a review"):
+
+        if st.session_state.logged_in_user:
+            if st.button("Write a review", key="open_review_in_reviews_tab", width="stretch", type="primary"):
                 st.session_state.show_add_review_for_selected = True
+                st.rerun()
 
         if st.session_state.get("show_add_review_for_selected", False) and st.session_state.logged_in_user:
             with st.form("add_review_for_selected"):
@@ -1638,10 +2191,18 @@ def init_state() -> None:
         "show_add_location": False,
         "show_manage_loc": False,
         "show_add_review_for_selected": False,
-        "current_page": "map",
+        "show_upload_image_for_selected": False,
+        "show_favorites_only": False,
+        "selected_preset": "None",
+        "spotlight_section": "Overview",
+        "spotlight_feedback": None,
+        "just_signed_in": False,
+        "just_signed_in_until": 0.0,
+        "current_page": "auth",
         "selected_category_id": None,
         # Incremented after every write so analytics always shows fresh data.
         "data_version": 0,
+        "query_log_reset_done": False,
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -1650,85 +2211,47 @@ def init_state() -> None:
 
 init_db()
 init_state()
+if not st.session_state.query_log_reset_done:
+    reset_query_log()
+    st.session_state.query_log_reset_done = True
+
+if not st.session_state.logged_in_user and st.session_state.current_page not in {"auth"}:
+    st.session_state.current_page = "auth"
+    st.rerun()
+
+if st.session_state.logged_in_user and st.session_state.current_page not in {"map", "profile", "auth"}:
+    st.session_state.current_page = "map"
+    st.rerun()
 
 if st.session_state.current_page == "auth":
-    brand_col, status_col = st.columns([5, 2])
-    with brand_col:
-        st.markdown(
-            """
-            <section class="hero-banner">
-                <div class="app-kicker">Manipal map platform</div>
-                <p class="main-title">Manipal Atlas</p>
-                <p class="title-support">A dedicated sign-in and registration space for the map platform.</p>
-            </section>
-            """,
-            unsafe_allow_html=True,
-        )
-    with status_col:
-        if st.session_state.logged_in_user:
-            st.markdown('<span class="status-pill">Signed in</span>', unsafe_allow_html=True)
-            st.markdown(
-                f"<p class='status-text'>Working as {esc(st.session_state.logged_in_user['name'])}</p>",
-                unsafe_allow_html=True,
-            )
-        else:
-            st.markdown('<span class="status-pill">Account page</span>', unsafe_allow_html=True)
-            st.markdown("<p class='status-text'>Sign in or register to unlock edit controls.</p>", unsafe_allow_html=True)
     render_auth_page()
 else:
-    title_col, auth_col = st.columns([5, 2])
-    with title_col:
-        st.markdown(
-            """
-            <section class="hero-banner">
-                <div class="app-kicker">Manipal map platform</div>
-                <p class="main-title">Manipal Atlas</p>
-                <p class="title-support">A map-first workspace for discovering locations, managing place details, and tracking community reviews around Manipal.</p>
-            </section>
-            """,
-            unsafe_allow_html=True,
-        )
-    with auth_col:
-        if st.session_state.logged_in_user:
-            st.markdown('<span class="status-pill">Signed in</span>', unsafe_allow_html=True)
-            st.markdown(
-                f"<p class='status-text'>Working as {esc(st.session_state.logged_in_user['name'])}</p>",
-                unsafe_allow_html=True,
-            )
-            if st.button("Sign out", icon=":material/logout:", width="stretch"):
-                st.session_state.logged_in_user = None
-                st.success("Signed out.")
-                st.rerun()
-        else:
-            st.markdown('<span class="status-pill">Guest mode</span>', unsafe_allow_html=True)
-            st.markdown("<p class='status-text'>Sign in to add places, reviews, favorites, and photos.</p>", unsafe_allow_html=True)
-            if st.button("Sign in", icon=":material/login:", type="primary", width="stretch"):
-                st.session_state.current_page = "auth"
-                st.rerun()
+    if not st.session_state.logged_in_user and st.session_state.current_page not in {"auth"}:
+        st.session_state.current_page = "auth"
+    if st.session_state.logged_in_user and st.session_state.current_page not in {"map", "profile"}:
+        st.session_state.current_page = "map"
 
     nav_col, content_col = st.columns([1.08, 3.92], gap="large")
 
     with nav_col:
+        if st.session_state.logged_in_user:
+            st.markdown(
+                f"<p class='status-text' style='margin:0 0 0.45rem;'>Signed in as {esc(st.session_state.logged_in_user['name'])}</p>",
+                unsafe_allow_html=True,
+            )
+            if st.button("Sign out", icon=":material/logout:", width="stretch", key="nav_signout"):
+                st.session_state.logged_in_user = None
+                st.session_state.current_page = "auth"
+                st.success("Signed out.")
+                st.rerun()
+
         st.markdown('<div class="panel-kicker">Workspace</div>', unsafe_allow_html=True)
         st.markdown('<p class="nav-title">Navigation</p>', unsafe_allow_html=True)
-        st.markdown(
-            '<p class="nav-copy">Move between map exploration and the Analytics workspace for live query results, leaderboards, set operations, runtime demos, and trigger logs.</p>',
-            unsafe_allow_html=True,
-        )
 
-        pages = [
-            ("Map View", "map", ":material/map:"),
-            ("Analytics", "analytics", ":material/query_stats:"),
-        ]
-        for label, page_key, icon in pages:
-            if st.button(
-                label,
-                icon=icon,
-                type="primary" if st.session_state.current_page == page_key else "secondary",
-                width="stretch",
-                key=f"nav_{page_key}",
-            ):
-                st.session_state.current_page = page_key
+        if st.button("Map View", icon=":material/map:", type="primary" if st.session_state.current_page == "map" else "secondary", width="stretch", key="nav_map"):
+            st.session_state.current_page = "map"
+        if st.session_state.logged_in_user and st.button("Profile", icon=":material/person:", type="primary" if st.session_state.current_page == "profile" else "secondary", width="stretch", key="nav_profile"):
+            st.session_state.current_page = "profile"
 
         st.markdown('<hr class="panel-divider">', unsafe_allow_html=True)
         st.markdown('<p class="nav-title">Filters</p>', unsafe_allow_html=True)
@@ -1737,7 +2260,7 @@ else:
         options = ["All"]
         category_map: dict[str, int] = {}
         for _, row in categories_df.iterrows():
-            label = f"{row['category_name']} (ID {int(row['category_id'])})"
+            label = f"{row['category_name']}"
             options.append(label)
             category_map[label] = int(row["category_id"])
 
@@ -1750,17 +2273,32 @@ else:
 
         selected_label = st.selectbox("Filter by category", options, index=options.index(current_label))
         st.session_state.selected_category_id = category_map.get(selected_label)
+        preset_options = [
+            "None",
+            "All places",
+            "Highly rated",
+            "Highly reviewed",
+            "Most favourited",
+            "Category leaders",
+            "Saved and reviewed",
+        ]
+        preset_index = preset_options.index(st.session_state.get("selected_preset", "All places")) if st.session_state.get("selected_preset", "All places") in preset_options else 0
+        st.session_state.selected_preset = st.selectbox("Quick preset", preset_options, index=preset_index)
+        st.session_state.show_favorites_only = st.checkbox(
+            "Show only favorites",
+            value=bool(st.session_state.show_favorites_only),
+            help="Requires sign in.",
+        )
 
         st.markdown('<hr class="panel-divider">', unsafe_allow_html=True)
-        st.markdown('<p class="nav-title">Quick actions</p>', unsafe_allow_html=True)
-
-        if st.button("Add new category", icon=":material/category:", width="stretch"):
+        st.markdown('<p class="nav-title">Actions</p>', unsafe_allow_html=True)
+        if st.button("Add new category", icon=":material/category:", width="stretch", key="nav_add_category"):
             st.session_state.show_add_category = not st.session_state.show_add_category
-
-        if st.button("Add new location", icon=":material/add_location_alt:", width="stretch"):
+            st.session_state.show_add_location = False
+        if st.button("Add new location", icon=":material/add_location_alt:", width="stretch", key="nav_add_location"):
             st.session_state.show_add_location = not st.session_state.show_add_location
-
-        if st.button("Load sample data", width="stretch"):
+            st.session_state.show_add_category = False
+        if st.button("Load sample data", width="stretch", key="nav_load_sample"):
             try:
                 insert_sample_data()
                 st.success("Sample data loaded.")
@@ -1772,10 +2310,35 @@ else:
     with content_col:
         render_add_category_card()
         render_add_location_card()
+        all_locations_df = get_locations()
+        locations_df = search_locations_by_category(st.session_state.selected_category_id)
 
-        if st.session_state.current_page == "analytics":
-            render_analytics_page()
+        if st.session_state.selected_preset == "Highly rated":
+            preset_df = top_rated_locations(min_reviews=2)
+            locations_df = locations_df[locations_df["location_id"].isin(preset_df["location_id"].tolist())]
+        elif st.session_state.selected_preset == "Highly reviewed":
+            preset_df = most_reviewed_locations()
+            locations_df = locations_df[locations_df["location_id"].isin(preset_df["location_id"].tolist())]
+        elif st.session_state.selected_preset == "Most favourited":
+            preset_df = most_favorited_locations(min_favorites=1)
+            locations_df = locations_df[locations_df["location_id"].isin(preset_df["location_id"].tolist())]
+        elif st.session_state.selected_preset == "Category leaders":
+            preset_df = locations_above_all_in_category()
+            locations_df = locations_df[locations_df["location_id"].isin(preset_df["location_id"].tolist())]
+        elif st.session_state.selected_preset == "Saved and reviewed":
+            preset_df = common_favorites_and_reviewed()
+            locations_df = locations_df[locations_df["location_id"].isin(preset_df["location_id"].tolist())]
+
+        if st.session_state.show_favorites_only:
+            if st.session_state.logged_in_user:
+                favorite_ids = set(get_favorite_location_ids(int(st.session_state.logged_in_user["user_id"])))
+                locations_df = locations_df[locations_df["location_id"].isin(favorite_ids)]
+            else:
+                locations_df = locations_df.iloc[0:0]
+                st.info("Sign in to view favorite locations.")
+        if st.session_state.current_page == "profile" and st.session_state.logged_in_user:
+            render_profile_page()
+        elif st.session_state.current_page == "auth":
+            render_auth_page()
         else:
-            all_locations_df = get_locations()
-            locations_df = search_locations_by_category(st.session_state.selected_category_id)
             render_map_page(locations_df, all_locations_df, categories_df)
