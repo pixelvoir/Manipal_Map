@@ -548,6 +548,19 @@ st.markdown(
         border-radius: var(--r-lg);
         padding: 1.25rem;
         box-shadow: var(--shadow-sm);
+        min-height: 560px;
+        display: flex;
+    }
+    .auth-panel-inner {
+        display: flex;
+        flex-direction: column;
+        gap: 0.85rem;
+        width: 100%;
+        min-height: 100%;
+    }
+    .auth-panel-content {
+        display: grid;
+        gap: 0.75rem;
     }
     .auth-panel-title { font-size: 1rem; font-weight: 700; color: var(--text); margin: 0; }
     .auth-panel-copy  { font-size: 0.82rem; color: var(--text-2); margin: 0.35rem 0 0.9rem; }
@@ -559,6 +572,44 @@ st.markdown(
         margin: 0.75rem 0 0;
     }
     .auth-feature-list li { margin-bottom: 0.3rem; }
+    .auth-benefits {
+        margin-top: auto;
+        border: 1px solid var(--border);
+        background: linear-gradient(150deg, var(--surface-alt) 0%, var(--surface) 100%);
+        border-radius: var(--r-md);
+        padding: 0.82rem 0.88rem;
+    }
+    .auth-benefits-title {
+        margin: 0 0 0.48rem;
+        font-size: 0.78rem;
+        font-weight: 800;
+        color: var(--text);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+    .auth-benefits-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.42rem;
+    }
+    .auth-benefit-chip {
+        border: 1px solid var(--border-strong);
+        background: var(--surface);
+        border-radius: 999px;
+        padding: 0.26rem 0.58rem;
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: var(--text-2);
+        text-align: center;
+    }
+    @media (max-width: 1120px) {
+        .auth-panel {
+            min-height: auto;
+        }
+        .auth-benefits-grid {
+            grid-template-columns: 1fr;
+        }
+    }
 
     /* ── Sidebar text ────────────────────────────────────── */
     .nav-title {
@@ -709,6 +760,19 @@ st.markdown(
         font-size: 0.82rem !important;
         font-weight: 600 !important;
         font-family: 'Outfit', sans-serif !important;
+    }
+
+    /* Improve toggle visibility in light mode */
+    [data-theme="light"] div[data-testid="stToggle"] label,
+    [data-theme="light"] div[data-testid="stToggle"] label p {
+        color: #2b3a33 !important;
+        opacity: 1 !important;
+        font-weight: 700 !important;
+    }
+    [data-theme="light"] div[data-testid="stToggle"] [role="switch"][aria-checked="false"] {
+        background: #d7e2dc !important;
+        border: 1px solid #a5b9ad !important;
+        box-shadow: inset 0 0 0 1px rgba(31, 51, 42, 0.05) !important;
     }
 
     .main-title {
@@ -1199,6 +1263,10 @@ def render_theme_toggle(widget_key: str, *, label: str = "Dark mode") -> None:
         st.rerun()
 
 
+def is_add_location_mode_active() -> bool:
+    return bool(st.session_state.get("current_page") == "map" and st.session_state.get("show_add_location"))
+
+
 def render_section_header(title: str, *, kicker: str | None = None, description: str | None = None, state_key: str | None = None) -> None:
     if state_key:
         title_col, action_col = st.columns([12, 1])
@@ -1276,7 +1344,7 @@ def render_react_hero(
                     }
                     const rotate = setInterval(() => {
                         setActiveIdx((prev) => (prev + 1) % safeChips.length);
-                    }, 2800);
+                    }, 4800);
                     return () => clearInterval(rotate);
                 }, [safeChips.length]);
 
@@ -1440,7 +1508,7 @@ def render_react_hero(
                             width: 100%;
                             transform-origin: left;
                             background: linear-gradient(90deg, rgba(134,239,172,0.94), rgba(52,211,153,0.92));
-                            animation: atlasProgress 2.7s linear forwards;
+                            animation: atlasProgress 4.8s linear forwards;
                         }
                         .atlas-content {
                             position: relative;
@@ -1503,7 +1571,7 @@ def render_react_hero(
     components.html(html_block, height=height)
 
 
-def render_map(df: pd.DataFrame) -> None:
+def render_map(df: pd.DataFrame, *, allow_pinpoint: bool = False) -> None:
     if df.empty:
         st.info("No locations match the current filter.")
         return
@@ -1533,7 +1601,7 @@ def render_map(df: pd.DataFrame) -> None:
             popup=row["name"],
         ).add_to(fmap)
 
-    if st.session_state.last_clicked_coords:
+    if allow_pinpoint and st.session_state.last_clicked_coords:
         pin_lat, pin_lng = st.session_state.last_clicked_coords
         folium.CircleMarker(
             location=[pin_lat, pin_lng],
@@ -1552,7 +1620,7 @@ def render_map(df: pd.DataFrame) -> None:
     st.markdown('</div>', unsafe_allow_html=True)
 
     last_clicked = result.get("last_clicked") if result else None
-    if last_clicked:
+    if last_clicked and allow_pinpoint:
         st.session_state.last_clicked_coords = (
             float(last_clicked["lat"]),
             float(last_clicked["lng"]),
@@ -1565,7 +1633,7 @@ def render_map(df: pd.DataFrame) -> None:
             st.session_state.selected_location_id = int(loc_id)
             st.session_state.show_manage_loc = False
 
-    if st.session_state.last_clicked_coords:
+    if allow_pinpoint and st.session_state.last_clicked_coords:
         lat, lng = st.session_state.last_clicked_coords
         st.markdown(
             f'<p class="map-caption">Pinned coordinate: {lat:.6f}, {lng:.6f}</p>',
@@ -1590,8 +1658,9 @@ def render_map_page(locations_df: pd.DataFrame, all_locations_df: pd.DataFrame, 
         if not match.empty:
             current_filter = str(match.iloc[0])
 
-    preset_label = st.session_state.get("selected_preset", "All places")
+    preset_label = st.session_state.get("selected_preset", "None")
     show_welcome_transition = bool(st.session_state.get("just_signed_in"))
+    allow_pinpoint = is_add_location_mode_active()
 
     title = (
         f"Welcome back, {esc(st.session_state.logged_in_user['name'])}"
@@ -1627,11 +1696,11 @@ def render_map_page(locations_df: pd.DataFrame, all_locations_df: pd.DataFrame, 
     if st.session_state.selected_location_id:
         map_col, inspector_col = st.columns([2.5, 1], gap="large")
         with map_col:
-            render_map(locations_df)
+            render_map(locations_df, allow_pinpoint=allow_pinpoint)
         with inspector_col:
             render_location_details()
     else:
-        render_map(locations_df)
+        render_map(locations_df, allow_pinpoint=allow_pinpoint)
         render_location_details()
 
 
@@ -1770,9 +1839,7 @@ def render_profile_page() -> None:
 
 
 def render_auth_page() -> None:
-    top_left, _ = st.columns([1, 5])
-    with top_left:
-        render_theme_toggle("theme_toggle_auth")
+    render_theme_toggle("theme_toggle_auth")
 
     if st.session_state.logged_in_user:
         st.markdown(
@@ -1798,21 +1865,23 @@ def render_auth_page() -> None:
                 st.rerun()
         return
 
-    left_col, right_col = st.columns([1.08, 0.92], gap="large")
+    left_col, right_col = st.columns([1.04, 0.96], gap="medium")
 
     with left_col:
         render_react_hero(
             "Discover Manipal, one place at a time",
             "Sign in to explore the map, save favourites, write reviews, and add new places. Registration is available if you are new here.",
-            ["Map-first", "Favourites", "Reviews", "Photos"],
+            ["Map-first", "Favourites", "Reviews", "Photos", "Add places"],
             background_image="https://images.unsplash.com/photo-1516834611397-8d633eaec5d0?auto=format&fit=crop&w=1600&q=80",
             badge="Manipal Atlas",
             is_dark=st.session_state.get("ui_theme") == "dark",
+            height=560,
         )
 
     with right_col:
         st.markdown('<div class="auth-panel">', unsafe_allow_html=True)
         st.markdown('<div class="auth-panel-inner">', unsafe_allow_html=True)
+        st.markdown('<div class="auth-panel-content">', unsafe_allow_html=True)
         st.markdown('<div class="panel-kicker">Secure access</div>', unsafe_allow_html=True)
         st.markdown('<p class="surface-title">Sign in to continue</p>', unsafe_allow_html=True)
         st.markdown('<p class="auth-mini">Create an account if you are new, then return to the map with your contributions saved.</p>', unsafe_allow_html=True)
@@ -1863,6 +1932,21 @@ def render_auth_page() -> None:
                 except Exception as ex:
                     st.error(f"Registration failed: {ex}")
 
+        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown(
+            """
+            <div class="auth-benefits">
+                <p class="auth-benefits-title">What you unlock</p>
+                <div class="auth-benefits-grid">
+                    <span class="auth-benefit-chip">Save favourites</span>
+                    <span class="auth-benefit-chip">Write reviews</span>
+                    <span class="auth-benefit-chip">Upload photos</span>
+                    <span class="auth-benefit-chip">Add locations</span>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
         st.markdown('</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 def render_add_category_card() -> None:
@@ -2654,14 +2738,14 @@ else:
         st.session_state.selected_category_id = category_map.get(selected_label)
         preset_options = [
             "None",
-            "All places",
             "Highly rated",
             "Highly reviewed",
             "Most favourited",
             "Category leaders",
             "Saved and reviewed",
         ]
-        preset_index = preset_options.index(st.session_state.get("selected_preset", "All places")) if st.session_state.get("selected_preset", "All places") in preset_options else 0
+        current_preset = st.session_state.get("selected_preset", "None")
+        preset_index = preset_options.index(current_preset) if current_preset in preset_options else 0
         st.session_state.selected_preset = st.selectbox("Quick preset", preset_options, index=preset_index)
         st.session_state.show_favorites_only = st.checkbox(
             "Show only favorites",
@@ -2674,11 +2758,14 @@ else:
         if st.button("Add new category", icon=":material/category:", width="stretch", key="nav_add_category"):
             st.session_state.show_add_category = not st.session_state.show_add_category
             st.session_state.show_add_location = False
+            st.session_state.last_clicked_coords = None
         if st.button("Add new location", icon=":material/add_location_alt:", width="stretch", key="nav_add_location"):
             st.session_state.show_add_location = not st.session_state.show_add_location
             st.session_state.show_add_category = False
             if st.session_state.show_add_location:
                 st.session_state.current_page = "map"
+            else:
+                st.session_state.last_clicked_coords = None
         if st.button("Load sample data", width="stretch", key="nav_load_sample"):
             try:
                 insert_sample_data()
