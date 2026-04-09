@@ -1908,13 +1908,12 @@ def render_analytics_page() -> None:
     import datetime
 
     render_page_banner(
-        "Analytics",
-        "Live insights into your Manipal Map data — leaderboards, query deep-dives, set operations, runtime demos, and trigger audit logs all in one place.",
-        kicker="Analytics & SQL Explorer",
-        chips=["Live data", "Interactive demos", "Trigger logs", "Cursor routines"],
+        "Logs",
+        "Trigger-backed audit logs.",
+        kicker="Logs",
+        chips=["Review logs", "Delete logs"],
     )
 
-    # ── Refresh bar ────────────────────────────────────────────────────────
     refresh_col, ts_col = st.columns([1, 4])
     with refresh_col:
         if st.button("↻  Refresh all data", key="analytics_refresh", type="primary", width="stretch"):
@@ -1928,244 +1927,44 @@ def render_analytics_page() -> None:
             unsafe_allow_html=True,
         )
 
-    # ── Live summary metrics (always fresh — no cache) ─────────────────────
-    _ratings_df = average_rating_per_location()
-    _all_locs   = get_locations()
-    _total_reviews = int(_ratings_df["review_count"].fillna(0).sum()) if not _ratings_df.empty else 0
-    _best_avg = (
-        f"{float(_ratings_df['avg_rating'].dropna().max()):.2f}"
-        if not _ratings_df.empty and _ratings_df["avg_rating"].dropna().shape[0] > 0
-        else "N/A"
-    )
-    _review_logs_df    = get_review_logs()
-    _deleted_audit_df  = get_deleted_location_audit()
-
-    render_metric_row(
-        [
-            ("Locations", str(len(_all_locs)), "in the database"),
-            ("Total reviews", str(_total_reviews), "across all locations"),
-            ("Best avg rating", _best_avg, "highest-rated location"),
-            ("Trigger log entries", str(len(_review_logs_df)), f"+ {len(_deleted_audit_df)} archived deletes"),
-        ]
-    )
-
     st.markdown('<hr class="panel-divider">', unsafe_allow_html=True)
 
-    # ── Sub-tabs ───────────────────────────────────────────────────────────
-    overview_tab, leaderboard_tab, setops_tab, runtime_tab, logs_tab = st.tabs(
-        ["📊 Overview", "🏆 Leaderboards", "⚙️ Set Operations", "🔄 Runtime Demos", "📋 Trigger Logs"]
+    review_logs_tab, delete_logs_tab = st.tabs(
+        ["Review Audit Logs", "Deleted Location Logs"]
     )
 
-    # ── Overview ──────────────────────────────────────────────────────────
-    with overview_tab:
+    with review_logs_tab:
         st.markdown(
             """
             <div class="flat-section">
                 <div class="surface-head">
-                    <div class="panel-kicker">Live query results</div>
-                    <div class="surface-title">Location ratings overview</div>
-                    <p class="surface-copy">Average rating per location, ordered by score. Null-rated locations (no reviews yet) appear at the bottom.</p>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        safe_df(average_rating_per_location(), "No locations found.")
-
-        st.markdown('<hr class="panel-divider">', unsafe_allow_html=True)
-
-        cat_col, band_col = st.columns(2, gap="large")
-        with cat_col:
-            st.markdown(
-                """
-                <div class="flat-section">
-                    <div class="surface-head">
-                        <div class="panel-kicker">View query</div>
-                        <div class="surface-title">Category activity summary</div>
-                        <p class="surface-copy">Powered by the <code>category_activity_summary</code> view — counts locations, reviewed locations, and computes an intensity band via the <code>rating_band()</code> UDF.</p>
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-            safe_df(get_category_activity_summary(), "No categories yet.")
-        with band_col:
-            st.markdown(
-                """
-                <div class="flat-section">
-                    <div class="surface-head">
-                        <div class="panel-kicker">UDF + view</div>
-                        <div class="surface-title">Rating band classification</div>
-                        <p class="surface-copy">Every location is assigned Excellent / Strong / Average / Needs Attention / Unrated using SQLite's registered <code>rating_band()</code> scalar function.</p>
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-            safe_df(location_rating_bands(), "No locations found.")
-
-    # ── Leaderboards ──────────────────────────────────────────────────────
-    with leaderboard_tab:
-        top_col, reviewed_col = st.columns(2, gap="large")
-        with top_col:
-            min_rev = st.number_input("Minimum reviews threshold", min_value=1, max_value=20, value=1, step=1, key="leaderboard_min_reviews")
-            st.markdown(
-                """
-                <div class="flat-section">
-                    <div class="surface-head">
-                        <div class="panel-kicker">HAVING filter</div>
-                        <div class="surface-title">Top-rated locations</div>
-                        <p class="surface-copy">Grouped by location with a HAVING clause filtering out locations below the review threshold. Ordered by average rating descending.</p>
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-            safe_df(top_rated_locations(min_reviews=int(min_rev)), "No locations meet this threshold.")
-        with reviewed_col:
-            st.markdown(
-                """
-                <div class="flat-section">
-                    <div class="surface-head">
-                        <div class="panel-kicker">CTE query</div>
-                        <div class="surface-title">Most reviewed locations</div>
-                        <p class="surface-copy">Uses a <code>WITH</code> clause (CTE) to pre-aggregate review counts before joining back to Locations. Shows places with the most community engagement.</p>
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-            safe_df(most_reviewed_locations(), "No reviews yet.")
-
-        st.markdown('<hr class="panel-divider">', unsafe_allow_html=True)
-
-        user_col, five_star_col = st.columns(2, gap="large")
-        with user_col:
-            st.markdown(
-                """
-                <div class="flat-section">
-                    <div class="surface-head">
-                        <div class="panel-kicker">GROUP BY aggregation</div>
-                        <div class="surface-title">Most active reviewers</div>
-                        <p class="surface-copy">Users ranked by total review count. Identifies the most engaged community contributors.</p>
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-            safe_df(users_with_most_reviews(), "No reviewers yet.")
-        with five_star_col:
-            st.markdown(
-                """
-                <div class="flat-section">
-                    <div class="surface-head">
-                        <div class="panel-kicker">EXISTS subquery</div>
-                        <div class="surface-title">Users with a five-star review</div>
-                        <p class="surface-copy">Uses an EXISTS correlated subquery — returns users who have submitted at least one perfect rating.</p>
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-            safe_df(users_with_five_star_review(), "No five-star reviews found.")
-
-        st.markdown('<hr class="panel-divider">', unsafe_allow_html=True)
-        best_col, corr_col = st.columns(2, gap="large")
-        with best_col:
-            st.markdown(
-                """
-                <div class="flat-section">
-                    <div class="surface-head">
-                        <div class="panel-kicker">NOT EXISTS / peer comparison</div>
-                        <div class="surface-title">Category leaders</div>
-                        <p class="surface-copy">The top-rated location in each category — no peer within the same category has a higher or equal average. Uses a NOT EXISTS peer comparison.</p>
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-            safe_df(locations_above_all_in_category(), "No exclusive category leaders found.")
-        with corr_col:
-            st.markdown(
-                """
-                <div class="flat-section">
-                    <div class="surface-head">
-                        <div class="panel-kicker">Correlated subquery</div>
-                        <div class="surface-title">Location vs category average</div>
-                        <p class="surface-copy">Each row shows a location's own average beside its category's overall average. Computed with a correlated scalar subquery inside the SELECT list.</p>
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-            safe_df(best_per_category_correlated(), "No reviewed locations found.")
-
-    # ── Set Operations ────────────────────────────────────────────────────
-    with setops_tab:
-        st.markdown(
-            """
-            <div class="flat-section">
-                <div class="surface-head">
-                    <div class="panel-kicker">Set algebra on live data</div>
-                    <div class="surface-title">UNION · EXCEPT · INTERSECT</div>
-                    <p class="surface-copy">Each result below is computed fresh from the database. Expand a section to see the live output.</p>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        with st.expander("UNION — top-rated OR most-reviewed", expanded=True):
-            st.caption("Locations surfaced either by high rating (≥ 4.0 avg) OR by high review count (≥ 2). A location can appear for both reasons.")
-            safe_df(locations_union_high_activity(), "No noteworthy locations found.")
-
-        with st.expander("EXCEPT — active but not top-rated", expanded=False):
-            st.caption("Reviewed places that have at least one review but do NOT qualify as top-rated. Useful for spotting locations that need improvement.")
-            safe_df(active_but_not_top_rated(), "All reviewed locations are also top rated.")
-
-        with st.expander("INTERSECT — favorited AND reviewed", expanded=False):
-            st.caption("Locations that appear in both the Favorites table and the Reviews table — places the community both saved and rated.")
-            safe_df(common_favorites_and_reviewed(), "No locations appear in both favorites and reviews.")
-
-        with st.expander("NOT EXISTS (relational division) — users who reviewed all categories", expanded=False):
-            st.caption("Uses a NOT EXISTS / EXCEPT combination to find users who reviewed at least one location in every category that has been reviewed.")
-            safe_df(users_who_reviewed_all_categories(), "No user has reviewed all categories yet.")
-
-    # ── Runtime Demos ─────────────────────────────────────────────────────
-    with runtime_tab:
-        render_db_runtime_sections()
-
-    # ── Trigger Logs ──────────────────────────────────────────────────────
-    with logs_tab:
-        st.markdown(
-            """
-            <div class="flat-section">
-                <div class="surface-head">
-                    <div class="panel-kicker">Automatic DB-side logging</div>
+                    <div class="panel-kicker">Logs</div>
                     <div class="surface-title">Review audit log</div>
-                    <p class="surface-copy">Every INSERT or rating UPDATE on the Reviews table is automatically captured by SQLite triggers <code>trg_log_review_insert</code> and <code>trg_log_review_update</code>. No Python code writes these rows — they are purely trigger-driven.</p>
+                    <p class="surface-copy">Trigger-backed audit logs.</p>
                 </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
-        if st.button("↻  Refresh logs", key="refresh_logs_btn", width="stretch"):
+        if st.button("Refresh logs", key="refresh_review_logs_btn", width="stretch"):
             st.rerun()
         safe_df(get_review_logs(), "No trigger log entries yet. Add or edit a review to generate log rows.")
 
-        st.markdown('<hr class="panel-divider">', unsafe_allow_html=True)
+    with delete_logs_tab:
         st.markdown(
             """
             <div class="flat-section">
                 <div class="surface-head">
-                    <div class="panel-kicker">BEFORE DELETE trigger</div>
-                    <div class="surface-title">Deleted location archive</div>
-                    <p class="surface-copy">When a location is deleted, the <code>trg_archive_location_delete</code> trigger fires BEFORE the row is removed, capturing the location's name and related-row counts into <code>DeletedLocationAudit</code>.</p>
+                    <div class="panel-kicker">Logs</div>
+                    <div class="surface-title">Deleted location archive log</div>
+                    <p class="surface-copy">Trigger-backed audit logs.</p>
                 </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
+        if st.button("Refresh logs", key="refresh_deleted_logs_btn", width="stretch"):
+            st.rerun()
         safe_df(get_deleted_location_audit(), "No locations have been deleted yet.")
 
 
@@ -2219,7 +2018,7 @@ if not st.session_state.logged_in_user and st.session_state.current_page not in 
     st.session_state.current_page = "auth"
     st.rerun()
 
-if st.session_state.logged_in_user and st.session_state.current_page not in {"map", "profile", "auth"}:
+if st.session_state.logged_in_user and st.session_state.current_page not in {"map", "profile", "analytics", "auth"}:
     st.session_state.current_page = "map"
     st.rerun()
 
@@ -2228,7 +2027,7 @@ if st.session_state.current_page == "auth":
 else:
     if not st.session_state.logged_in_user and st.session_state.current_page not in {"auth"}:
         st.session_state.current_page = "auth"
-    if st.session_state.logged_in_user and st.session_state.current_page not in {"map", "profile"}:
+    if st.session_state.logged_in_user and st.session_state.current_page not in {"map", "profile", "analytics"}:
         st.session_state.current_page = "map"
 
     nav_col, content_col = st.columns([1.08, 3.92], gap="large")
@@ -2252,6 +2051,8 @@ else:
             st.session_state.current_page = "map"
         if st.session_state.logged_in_user and st.button("Profile", icon=":material/person:", type="primary" if st.session_state.current_page == "profile" else "secondary", width="stretch", key="nav_profile"):
             st.session_state.current_page = "profile"
+        if st.session_state.logged_in_user and st.button("Logs", icon=":material/analytics:", type="primary" if st.session_state.current_page == "analytics" else "secondary", width="stretch", key="nav_analytics"):
+            st.session_state.current_page = "analytics"
 
         st.markdown('<hr class="panel-divider">', unsafe_allow_html=True)
         st.markdown('<p class="nav-title">Filters</p>', unsafe_allow_html=True)
@@ -2338,6 +2139,8 @@ else:
                 st.info("Sign in to view favorite locations.")
         if st.session_state.current_page == "profile" and st.session_state.logged_in_user:
             render_profile_page()
+        elif st.session_state.current_page == "analytics" and st.session_state.logged_in_user:
+            render_analytics_page()
         elif st.session_state.current_page == "auth":
             render_auth_page()
         else:
