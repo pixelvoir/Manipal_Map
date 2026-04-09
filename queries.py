@@ -590,6 +590,30 @@ def most_favorited_locations(min_favorites: int = 1) -> pd.DataFrame:
     )
 
 
+def get_flagged_locations() -> pd.DataFrame:
+    """Retrieve all locations marked as flagged by the cursor-based routine.
+    
+    Uses the LocationStatus table populated by flag_low_rated_locations cursor.
+    Returns locations where status = 'flagged' (average rating below threshold).
+    """
+    return _to_df(
+        """
+        SELECT
+            l.location_id,
+            l.name AS location_name,
+            ls.status,
+            ROUND(AVG(r.rating), 2) AS avg_rating,
+            COUNT(r.review_id) AS review_count
+        FROM Locations l
+        JOIN LocationStatus ls ON l.location_id = ls.location_id
+        LEFT JOIN Reviews r ON l.location_id = r.location_id
+        WHERE ls.status = 'flagged'
+        GROUP BY l.location_id, l.name, ls.status
+        ORDER BY avg_rating ASC, l.name
+        """
+    )
+
+
 def recently_reviewed_locations(limit: int = 50) -> pd.DataFrame:
     return _to_df(
         """

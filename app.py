@@ -38,6 +38,7 @@ from queries import (
     get_images_uploaded_by_user,
     get_images_for_location,
     get_favorite_location_ids,
+    get_flagged_locations,
     get_location_details,
     get_location_spotlight_insights,
     get_location_status,
@@ -1276,7 +1277,7 @@ def render_react_hero(
                     }
                     const rotate = setInterval(() => {
                         setActiveIdx((prev) => (prev + 1) % safeChips.length);
-                    }, 2800);
+                    }, 4000);
                     return () => clearInterval(rotate);
                 }, [safeChips.length]);
 
@@ -1472,11 +1473,7 @@ def render_react_hero(
                     e('div', { key: 'glow', className: 'atlas-hero-glow', style: { transform: glowTransform } }),
                     e('div', { key: 'content', className: 'atlas-content', style: { transform: contentTransform } }, [
                         e('div', { key: 'top', className: 'atlas-hero-top' }, [
-                            e('span', { key: 'badge', className: 'atlas-hero-badge' }, heroData.badge),
-                            e('span', { key: 'context', className: 'atlas-context-label' }, [
-                                e('span', { key: 'dot', className: 'atlas-context-dot' }),
-                                e('span', { key: 'txt' }, 'Dynamic context ' + (activeIdx + 1) + '/' + safeChips.length)
-                            ])
+                            e('span', { key: 'badge', className: 'atlas-hero-badge' }, heroData.badge)
                         ]),
                         e('h2', { key: 'title', className: 'atlas-hero-title' }, heroData.title),
                         e('p', { key: 'subtitle', className: 'atlas-hero-sub' }, heroData.subtitle),
@@ -1533,7 +1530,7 @@ def render_map(df: pd.DataFrame) -> None:
             popup=row["name"],
         ).add_to(fmap)
 
-    if st.session_state.last_clicked_coords:
+    if st.session_state.last_clicked_coords and st.session_state.show_add_location:
         pin_lat, pin_lng = st.session_state.last_clicked_coords
         folium.CircleMarker(
             location=[pin_lat, pin_lng],
@@ -2654,14 +2651,15 @@ else:
         st.session_state.selected_category_id = category_map.get(selected_label)
         preset_options = [
             "None",
-            "All places",
             "Highly rated",
             "Highly reviewed",
             "Most favourited",
             "Category leaders",
             "Saved and reviewed",
+            "Flagged locations",
         ]
-        preset_index = preset_options.index(st.session_state.get("selected_preset", "All places")) if st.session_state.get("selected_preset", "All places") in preset_options else 0
+        default_preset = st.session_state.get("selected_preset", "None")
+        preset_index = preset_options.index(default_preset) if default_preset in preset_options else 0
         st.session_state.selected_preset = st.selectbox("Quick preset", preset_options, index=preset_index)
         st.session_state.show_favorites_only = st.checkbox(
             "Show only favorites",
@@ -2708,6 +2706,9 @@ else:
             locations_df = locations_df[locations_df["location_id"].isin(preset_df["location_id"].tolist())]
         elif st.session_state.selected_preset == "Saved and reviewed":
             preset_df = common_favorites_and_reviewed()
+            locations_df = locations_df[locations_df["location_id"].isin(preset_df["location_id"].tolist())]
+        elif st.session_state.selected_preset == "Flagged locations":
+            preset_df = get_flagged_locations()
             locations_df = locations_df[locations_df["location_id"].isin(preset_df["location_id"].tolist())]
 
         if st.session_state.show_favorites_only:

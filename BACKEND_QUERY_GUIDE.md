@@ -47,6 +47,7 @@
 - `most_favorited_locations`: Sidebar quick preset -> Most favourited.
 - `locations_above_all_in_category`: Sidebar quick preset -> Category leaders.
 - `common_favorites_and_reviewed`: Sidebar quick preset -> Saved and reviewed.
+- `get_flagged_locations`: Sidebar quick preset -> Flagged locations (uses cursor-based `flag_low_rated_locations` data).
 - `get_user_contribution_summary`: Profile hero chips and profile metric cards.
 - `users_with_most_reviews`: Profile review-rank chip.
 - `get_location_spotlight_insights`: Location spotlight insight cards.
@@ -64,7 +65,7 @@
 - `location_rating_bands` (used only in non-routed analytics helper)
 - `get_review_logs` (used only in non-routed analytics helper)
 - `get_deleted_location_audit` (used only in non-routed analytics helper)
-- `flag_low_rated_locations` (used only in non-routed analytics helper)
+- `get_location_status` (used by `get_flagged_locations` cursor preset)
 - `parameterized_category_cursor` (used only in non-routed analytics helper)
 - `demo_savepoint_transaction` (used only in non-routed analytics helper)
 - `archive_delete_location_transaction` (used only in non-routed analytics helper)
@@ -104,7 +105,9 @@ A cursor is the object SQLite gives back after running a query. Think of it as:
 In this project:
 - Simple pattern: run query -> fetch rows -> convert rows into a DataFrame.
 - Cursor-style pattern: read rows one at a time and apply logic per row.
-  - `flag_low_rated_locations(threshold)` does this by scanning averages row-by-row, then upserting status.
+  - `flag_low_rated_locations(threshold)` does this by scanning averages row-by-row, then upserting status into `LocationStatus` table.
+  - The `LocationStatus` table stores each location's status ('flagged' or 'good') based on average rating.
+  - The `get_flagged_locations()` query then retrieves locations marked as 'flagged', used by the Flagged locations preset.
 - Parameterized cursor analogue:
   - `parameterized_category_cursor(category_id, threshold)` runs the same query structure with user inputs.
 
