@@ -986,6 +986,29 @@ def flag_low_rated_locations(threshold: float = 3.5) -> pd.DataFrame:
     )
 
 
+
+def get_flagged_locations(threshold: float = 3.5) -> pd.DataFrame:
+    """Refresh and return the locations currently flagged by the cursor routine."""
+    flag_low_rated_locations(threshold=threshold)
+    return _to_df(
+        """
+        SELECT
+            ls.location_id,
+            l.name AS location_name,
+            ls.status,
+            ls.last_updated,
+            ROUND(AVG(r.rating), 2) AS avg_rating,
+            COUNT(r.review_id) AS review_count
+        FROM LocationStatus ls
+        JOIN Locations l ON ls.location_id = l.location_id
+        LEFT JOIN Reviews r ON ls.location_id = r.location_id
+        WHERE ls.status = 'flagged'
+        GROUP BY ls.location_id, l.name, ls.status, ls.last_updated
+        ORDER BY avg_rating ASC, l.name
+        """
+    )
+
+
 def parameterized_category_cursor(category_id: int, threshold: float = 4.0) -> pd.DataFrame:
     """Parameterized cursor analogue — scoped to a single category with a threshold.
 

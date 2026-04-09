@@ -38,6 +38,7 @@ from queries import (
     get_images_uploaded_by_user,
     get_images_for_location,
     get_favorite_location_ids,
+    get_flagged_locations,
     get_location_details,
     get_location_spotlight_insights,
     get_location_status,
@@ -1184,6 +1185,16 @@ def safe_df(df: pd.DataFrame, message: str = "No records found.") -> None:
     st.dataframe(df, width="stretch", hide_index=True)
 
 
+def normalize_preset_name(value: str | None) -> str:
+    preset_aliases = {
+        "Highly rated": "Top rated",
+        "Highly reviewed": "Most reviewed",
+    }
+    if not value:
+        return "None"
+    return preset_aliases.get(value, value)
+
+
 def apply_theme_mode(theme_mode: str) -> None:
     theme_js = json.dumps(theme_mode if theme_mode in {"light", "dark"} else "light")
     components.html(
@@ -1607,7 +1618,7 @@ def render_map_page(locations_df: pd.DataFrame, all_locations_df: pd.DataFrame, 
         if not match.empty:
             current_filter = str(match.iloc[0])
 
-    preset_label = st.session_state.get("selected_preset", "None")
+    preset_label = normalize_preset_name(st.session_state.get("selected_preset", "None"))
     show_welcome_transition = bool(st.session_state.get("just_signed_in"))
     allow_pinpoint = is_add_location_mode_active()
 
@@ -2672,15 +2683,16 @@ else:
         st.session_state.selected_category_id = category_map.get(selected_label)
         preset_options = [
             "None",
-            "Highly rated",
-            "Highly reviewed",
+            "Top rated",
+            "Most reviewed",
             "Most favourited",
             "Category leaders",
             "Saved and reviewed",
+            "Flagged locations",
         ]
-        current_preset = st.session_state.get("selected_preset", "None")
+        current_preset = normalize_preset_name(st.session_state.get("selected_preset", "None"))
         preset_index = preset_options.index(current_preset) if current_preset in preset_options else 0
-        st.session_state.selected_preset = st.selectbox("Quick preset", preset_options, index=preset_index)
+        st.session_state.selected_preset = st.selectbox("Views", preset_options, index=preset_index)
         st.session_state.show_favorites_only = st.checkbox(
             "Show only favorites",
             value=bool(st.session_state.show_favorites_only),
@@ -2715,20 +2727,25 @@ else:
         all_locations_df = get_locations()
         locations_df = search_locations_by_category(st.session_state.selected_category_id)
 
-        if st.session_state.selected_preset == "Highly rated":
+        selected_preset = normalize_preset_name(st.session_state.selected_preset)
+
+        if selected_preset == "Top rated":
             preset_df = top_rated_locations(min_reviews=2)
             locations_df = locations_df[locations_df["location_id"].isin(preset_df["location_id"].tolist())]
-        elif st.session_state.selected_preset == "Highly reviewed":
+        elif selected_preset == "Most reviewed":
             preset_df = most_reviewed_locations()
             locations_df = locations_df[locations_df["location_id"].isin(preset_df["location_id"].tolist())]
-        elif st.session_state.selected_preset == "Most favourited":
+        elif selected_preset == "Most favourited":
             preset_df = most_favorited_locations(min_favorites=1)
             locations_df = locations_df[locations_df["location_id"].isin(preset_df["location_id"].tolist())]
-        elif st.session_state.selected_preset == "Category leaders":
+        elif selected_preset == "Category leaders":
             preset_df = locations_above_all_in_category()
             locations_df = locations_df[locations_df["location_id"].isin(preset_df["location_id"].tolist())]
-        elif st.session_state.selected_preset == "Saved and reviewed":
+        elif selected_preset == "Saved and reviewed":
             preset_df = common_favorites_and_reviewed()
+            locations_df = locations_df[locations_df["location_id"].isin(preset_df["location_id"].tolist())]
+        elif selected_preset == "Flagged locations":
+            preset_df = get_flagged_locations()
             locations_df = locations_df[locations_df["location_id"].isin(preset_df["location_id"].tolist())]
 
         if st.session_state.show_favorites_only:
