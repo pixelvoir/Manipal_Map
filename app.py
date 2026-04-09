@@ -75,37 +75,68 @@ st.set_page_config(page_title="Manipal Atlas", layout="wide")
 st.markdown(
     """
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700;800&display=swap');
 
+    /* ── Light theme (default) ──────────────────────────── */
     :root {
-        --bg:            #F4F5F2;
+        --bg:            #F0F4F1;
         --surface:       #FFFFFF;
-        --surface-alt:   #F9FAF8;
-        --border:        #E0E5DF;
-        --border-strong: #C8D0C6;
-        --text:          #16201A;
-        --text-2:        #4A5750;
-        --text-3:        #8A9590;
-        --accent:        #1B6840;
-        --accent-mid:    #2E8A5A;
-        --accent-pale:   #EAF3EE;
-        --accent-line:   #C6DDD0;
-        --shadow-sm:     0 1px 3px rgba(0,0,0,0.07),0 1px 2px rgba(0,0,0,0.04);
-        --shadow-md:     0 4px 12px rgba(0,0,0,0.08),0 2px 4px rgba(0,0,0,0.04);
-        --r-sm:  6px;
-        --r-md:  10px;
-        --r-lg:  14px;
+        --surface-alt:   #F7FAF8;
+        --surface-glass: rgba(255,255,255,0.82);
+        --border:        #DCE5DE;
+        --border-strong: #B8CEC0;
+        --text:          #111816;
+        --text-2:        #3D5047;
+        --text-soft:     #6B8070;
+        --text-3:        #8FA89A;
+        --accent:        #16A34A;
+        --accent-mid:    #22C55E;
+        --accent-dark:   #15803D;
+        --accent-pale:   #DCFCE7;
+        --accent-line:   #BBF7D0;
+        --accent-glow:   rgba(22,163,74,0.18);
+        --shadow-sm:     0 1px 4px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+        --shadow-md:     0 4px 16px rgba(0,0,0,0.08), 0 2px 6px rgba(0,0,0,0.05);
+        --shadow-lg:     0 12px 40px rgba(0,0,0,0.12), 0 4px 12px rgba(0,0,0,0.06);
+        --r-sm:  8px;
+        --r-md:  12px;
+        --r-lg:  18px;
+        --r-xl:  24px;
+    }
+
+    /* ── Dark theme ──────────────────────────────────────── */
+    [data-theme="dark"] {
+        --bg:            #0E1410;
+        --surface:       #161D18;
+        --surface-alt:   #1C2620;
+        --surface-glass: rgba(22,29,24,0.88);
+        --border:        #2A3830;
+        --border-strong: #3D5045;
+        --text:          #E8F0EA;
+        --text-2:        #8EB09A;
+        --text-soft:     #6A8A72;
+        --text-3:        #4A6A54;
+        --accent:        #22C55E;
+        --accent-mid:    #4ADE80;
+        --accent-dark:   #16A34A;
+        --accent-pale:   rgba(34,197,94,0.12);
+        --accent-line:   rgba(34,197,94,0.25);
+        --accent-glow:   rgba(34,197,94,0.28);
+        --shadow-sm:     0 1px 4px rgba(0,0,0,0.35), 0 1px 2px rgba(0,0,0,0.2);
+        --shadow-md:     0 4px 20px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.3);
+        --shadow-lg:     0 16px 48px rgba(0,0,0,0.65), 0 6px 16px rgba(0,0,0,0.4);
     }
 
     * { box-sizing: border-box; }
 
     .stApp {
         background: var(--bg);
-        font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
         color: var(--text);
         font-size: 14px;
         line-height: 1.5;
         -webkit-font-smoothing: antialiased;
+        transition: background 0.3s ease, color 0.3s ease;
     }
     section.main > div.block-container,
     div[data-testid="stMainBlockContainer"],
@@ -446,19 +477,6 @@ st.markdown(
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 0.65rem;
     }
-    .gallery-placeholder {
-        border: 1px dashed var(--border-strong);
-        border-radius: var(--r-md);
-        background: var(--surface-alt);
-        min-height: 160px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: var(--text-2);
-        font-size: 0.82rem;
-        padding: 0.8rem;
-        text-align: center;
-    }
 
     .auth-shell {
         display: grid;
@@ -750,9 +768,363 @@ st.markdown(
         color: var(--accent);
     }
 
+    /* ── Star Rating ─────────────────────────────────────── */
+    .star-row {
+        display: flex;
+        align-items: center;
+        gap: 0.22rem;
+        margin: 0.35rem 0;
+    }
+    .star-row svg { flex-shrink: 0; }
+    .star-score {
+        font-size: 0.82rem;
+        font-weight: 700;
+        color: var(--text);
+        margin-left: 0.3rem;
+    }
+    .star-count {
+        font-size: 0.76rem;
+        color: var(--text-3);
+        margin-left: 0.15rem;
+    }
+
+    /* ── Inspector card ──────────────────────────────────── */
+    .inspector-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--r-lg);
+        box-shadow: var(--shadow-md);
+        overflow: hidden;
+        margin-bottom: 0.9rem;
+    }
+    .inspector-header-bar {
+        background: linear-gradient(145deg, #1a342a 0%, #274d3b 100%);
+        padding: 1rem 1.1rem 0.85rem;
+        position: relative;
+    }
+    [data-theme="dark"] .inspector-header-bar {
+        background: linear-gradient(145deg, #0d1f16 0%, #1a3528 100%);
+    }
+    .inspector-header-bar .panel-kicker { color: rgba(200,230,215,0.72) !important; }
+    .inspector-header-bar .inspector-title { color: #fff !important; }
+    .inspector-header-bar .muted-copy { color: rgba(200,220,210,0.85) !important; }
+    .inspector-body {
+        padding: 0.9rem 1.1rem;
+    }
+
+    /* ── Dark mode toggle button ─────────────────────────── */
+    .dm-toggle {
+        position: fixed;
+        bottom: 1.25rem;
+        right: 1.25rem;
+        z-index: 9999;
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        border: 1px solid var(--border-strong);
+        background: var(--surface);
+        box-shadow: var(--shadow-md);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.1rem;
+        transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
+    }
+    .dm-toggle:hover {
+        transform: scale(1.12);
+        box-shadow: var(--shadow-lg);
+        background: var(--accent-pale);
+    }
+
+    /* ── Accent glow on hover for feature cards ──────────── */
+    .profile-card:hover, .metric-shell:hover {
+        border-color: var(--accent-line) !important;
+        box-shadow: var(--shadow-md), 0 0 0 3px var(--accent-glow) !important;
+        transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    /* ── Nav panel refinements ───────────────────────────── */
+    .nav-user-chip {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        padding: 0.5rem 0.65rem;
+        background: var(--accent-pale);
+        border: 1px solid var(--accent-line);
+        border-radius: var(--r-md);
+        margin-bottom: 0.75rem;
+    }
+    .nav-user-avatar {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: var(--accent);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.7rem;
+        font-weight: 700;
+        color: #fff;
+        flex-shrink: 0;
+    }
+    .nav-user-name {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--text);
+        line-height: 1.3;
+    }
+    .nav-user-status {
+        font-size: 0.68rem;
+        color: var(--accent);
+        font-weight: 500;
+    }
+
+    /* ── Wordmark ────────────────────────────────────────── */
+    .atlas-wordmark {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid var(--border);
+    }
+    .atlas-wordmark-text {
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--text);
+        letter-spacing: -0.01em;
+    }
+    .atlas-wordmark-sub {
+        font-size: 0.65rem;
+        color: var(--text-3);
+        font-weight: 500;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+    }
+
     @media (max-width: 900px) {
         .hero-title { font-size: 1.05rem; }
         .inspector-meta { grid-template-columns: 1fr; }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+st.markdown(
+    """
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap');
+
+    .stApp,
+    .stMarkdown,
+    .stText,
+    .stCaption,
+    .stDataFrame,
+    label,
+    input,
+    textarea,
+    select,
+    button {
+        font-family: 'Inter', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    }
+
+    h1, h2, h3, h4, h5, h6,
+    .surface-title,
+    .inspector-title,
+    .workspace-nav-title {
+        font-family: 'Plus Jakarta Sans', 'Inter', sans-serif !important;
+        letter-spacing: -0.01em;
+    }
+
+    .stApp {
+        background:
+            radial-gradient(1200px 460px at -8% -10%, rgba(22, 163, 74, 0.08), transparent 58%),
+            radial-gradient(1000px 380px at 112% -12%, rgba(21, 128, 61, 0.06), transparent 56%),
+            var(--bg);
+        color: var(--text);
+    }
+    [data-theme="dark"] .stApp {
+        background:
+            radial-gradient(1200px 460px at -8% -10%, rgba(34, 197, 94, 0.1), transparent 58%),
+            radial-gradient(1000px 380px at 112% -12%, rgba(16, 185, 129, 0.09), transparent 56%),
+            var(--bg);
+    }
+
+    .map-caption {
+        margin-top: 0.62rem;
+        color: var(--text-soft);
+        font-weight: 600;
+    }
+
+    .spotlight-shell,
+    .review-shell,
+    .profile-card,
+    .metric-shell,
+    .auth-panel,
+    .transition-shell,
+    .empty-shell {
+        border-radius: 12px !important;
+        border: 1px solid var(--border) !important;
+        background: linear-gradient(180deg, var(--surface) 0%, var(--surface-alt) 100%) !important;
+        box-shadow: var(--shadow-sm) !important;
+        transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
+    }
+
+    .spotlight-shell:hover,
+    .review-shell:hover,
+    .profile-card:hover,
+    .metric-shell:hover,
+    .auth-panel:hover {
+        transform: translateY(-1px);
+        border-color: var(--border-strong) !important;
+        box-shadow: var(--shadow-md) !important;
+    }
+
+    .metric-value {
+        font-family: 'Plus Jakarta Sans', 'Inter', sans-serif !important;
+    }
+
+    .soft-chip {
+        border-radius: 999px !important;
+        border: 1px solid var(--border-strong) !important;
+        background: var(--surface-alt) !important;
+        color: var(--text-2) !important;
+        font-weight: 700 !important;
+    }
+
+    .workspace-nav-kicker {
+        margin: 0 0 0.3rem;
+        font-size: 0.66rem;
+        letter-spacing: 0.11em;
+        text-transform: uppercase;
+        color: var(--accent);
+        font-weight: 800;
+    }
+
+    .workspace-nav-title {
+        margin: 0 0 0.2rem;
+        font-size: 1.04rem;
+        color: var(--text);
+        font-weight: 800;
+    }
+
+    .workspace-nav-copy {
+        margin: 0 0 0.72rem;
+        font-size: 0.82rem;
+        color: var(--text-soft);
+    }
+
+    .workspace-chip-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        margin-bottom: 0.7rem;
+    }
+
+    .workspace-chip {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.3rem 0.62rem;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: var(--text-2);
+        border: 1px solid var(--border-strong);
+        background: var(--surface-alt);
+    }
+
+    [data-testid="stButton"] > button,
+    [data-testid="stFormSubmitButton"] > button {
+        border-radius: 10px !important;
+        border: 1px solid var(--border-strong) !important;
+        background: var(--surface) !important;
+        color: var(--text) !important;
+        font-family: 'Inter', sans-serif !important;
+        font-size: 0.84rem !important;
+        font-weight: 700 !important;
+        box-shadow: var(--shadow-sm) !important;
+    }
+
+    [data-testid="stButton"] > button:hover,
+    [data-testid="stFormSubmitButton"] > button:hover {
+        border-color: var(--accent) !important;
+        background: var(--surface-alt) !important;
+    }
+
+    [data-testid="stButton"] > button[kind="primary"],
+    [data-testid="stFormSubmitButton"] > button[kind="primary"] {
+        background: linear-gradient(135deg, var(--accent-dark) 0%, var(--accent) 100%) !important;
+        border: none !important;
+        color: #f8fffb !important;
+    }
+
+    [data-testid="stButton"] > button[kind="primary"]:hover,
+    [data-testid="stFormSubmitButton"] > button[kind="primary"]:hover {
+        background: linear-gradient(135deg, var(--accent) 0%, var(--accent-mid) 100%) !important;
+    }
+
+    div[data-baseweb="select"] > div,
+    div[data-baseweb="input"] > div,
+    div[data-baseweb="base-input"] > div,
+    .stTextArea textarea,
+    .stNumberInput input {
+        border-radius: 10px !important;
+        border: 1px solid var(--border) !important;
+        background: var(--surface) !important;
+    }
+
+    .stTabs [data-baseweb="tab"] {
+        font-family: 'Inter', sans-serif !important;
+        font-weight: 600 !important;
+    }
+
+    .stTabs [aria-selected="true"] {
+        border-bottom-color: var(--accent) !important;
+        color: var(--text) !important;
+    }
+
+    .element-container iframe {
+        border-radius: 16px !important;
+        border: 1px solid var(--border) !important;
+        box-shadow: var(--shadow-md) !important;
+    }
+
+    .glow-shell {
+        border-radius: 16px;
+        overflow: hidden;
+    }
+    .glow-shell::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background: linear-gradient(120deg, rgba(255,255,255,0) 35%, rgba(255,255,255,0.18) 50%, rgba(255,255,255,0) 65%);
+        transform: translateX(-120%);
+        animation: atlasSweep 7s ease-in-out infinite;
+    }
+    [data-theme="dark"] .glow-shell::after {
+        background: linear-gradient(120deg, rgba(255,255,255,0) 35%, rgba(255,255,255,0.11) 50%, rgba(255,255,255,0) 65%);
+    }
+
+    .fade-slide {
+        animation: atlasLiftIn 420ms cubic-bezier(0.22,1,0.36,1);
+    }
+
+    @keyframes atlasLiftIn {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes atlasSweep {
+        0% { transform: translateX(-120%); }
+        55% { transform: translateX(120%); }
+        100% { transform: translateX(120%); }
+    }
+
+    [data-testid="stSidebar"] {
+        background: var(--surface) !important;
     }
     </style>
     """,
@@ -799,14 +1171,32 @@ def safe_df(df: pd.DataFrame, message: str = "No records found.") -> None:
     st.dataframe(df, width="stretch", hide_index=True)
 
 
-def closeable_card_header(title: str, state_key: str) -> None:
-    head_col, close_col = st.columns([12, 1])
-    with head_col:
-        st.markdown(f"#### {title}")
-    with close_col:
-        if st.button("Close", key=f"close_{state_key}"):
-            st.session_state[state_key] = False
-            st.rerun()
+def apply_theme_mode(theme_mode: str) -> None:
+    theme_js = json.dumps(theme_mode if theme_mode in {"light", "dark"} else "light")
+    components.html(
+        f"""
+        <script>
+            const theme = {theme_js};
+            const parentDoc = window.parent && window.parent.document ? window.parent.document : document;
+            parentDoc.documentElement.setAttribute('data-theme', theme);
+            parentDoc.body.setAttribute('data-theme', theme);
+            const appRoot = parentDoc.querySelector('.stApp');
+            if (appRoot) {{
+                appRoot.setAttribute('data-theme', theme);
+            }}
+        </script>
+        """,
+        height=0,
+    )
+
+
+def render_theme_toggle(widget_key: str, *, label: str = "Dark mode") -> None:
+    is_dark = st.session_state.get("ui_theme", "light") == "dark"
+    toggled = st.toggle(label, value=is_dark, key=widget_key)
+    next_theme = "dark" if toggled else "light"
+    if next_theme != st.session_state.get("ui_theme", "light"):
+        st.session_state.ui_theme = next_theme
+        st.rerun()
 
 
 def render_section_header(title: str, *, kicker: str | None = None, description: str | None = None, state_key: str | None = None) -> None:
@@ -828,150 +1218,289 @@ def render_section_header(title: str, *, kicker: str | None = None, description:
                 st.session_state[state_key] = False
                 st.rerun()
 
-
-def render_page_banner(title: str, description: str, *, kicker: str, chips: list[str] | None = None) -> None:
-    chip_html = ""
-    if chips:
-        chip_html = '<div class="hero-meta">' + "".join(
-            f'<span class="soft-chip">{esc(chip)}</span>' for chip in chips
-        ) + "</div>"
-
-    st.markdown(
-        f"""
-        <section class="hero-banner">
-            <div class="panel-kicker">{esc(kicker)}</div>
-            <h2 class="hero-title">{esc(title)}</h2>
-            <p class="hero-copy">{esc(description)}</p>
-            {chip_html}
-        </section>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
 def render_react_hero(
-        title: str,
-        subtitle: str,
-        chips: list[str],
-        *,
-        background_image: str | None = None,
-        badge: str = "Map-first experience",
-    height: int = 320,
+    title: str,
+    subtitle: str,
+    chips: list[str],
+    *,
+    background_image: str | None = None,
+    badge: str = "Map-first experience",
+    is_dark: bool = False,
+    height: int = 236,
 ) -> None:
-        title_js = json.dumps(title)
-        subtitle_js = json.dumps(subtitle)
-        chips_js = json.dumps(chips)
-        bg_js = json.dumps(background_image or "")
-        badge_js = json.dumps(badge)
-        components.html(
-                f"""
-                <div id="atlas-react-hero"></div>
-                <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-                <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-                <script>
-                    const e = React.createElement;
-                    const chips = {chips_js};
-                    const bg = {bg_js};
-                    const badge = {badge_js};
-                    function Hero() {{
-                        const [imgLoaded, setImgLoaded] = React.useState(!bg);
-                        React.useEffect(() => {{
-                            if (!bg) {{
-                                setImgLoaded(true);
-                                return;
-                            }}
-                            const img = new Image();
-                            img.onload = () => setImgLoaded(true);
-                            img.onerror = () => setImgLoaded(true);
-                            img.src = bg;
-                        }}, []);
-
-                        const style = {{
-                            position: 'relative',
-                            overflow: 'hidden',
-                            borderRadius: '22px',
-                            minHeight: '280px',
-                            padding: '22px',
-                            color: '#fff',
-                            backgroundImage: (bg && imgLoaded)
-                                ? 'linear-gradient(135deg, rgba(11,28,22,0.82), rgba(11,28,22,0.44)), url(' + bg + ')'
-                                : 'linear-gradient(135deg, #143126 0%, #2d6448 100%)',
-                            backgroundSize: 'cover',
-                            backgroundPosition: 'center, center',
-                            backgroundRepeat: 'no-repeat, no-repeat',
-                            boxShadow: '0 18px 40px rgba(0,0,0,0.15)',
-                            animation: 'heroLift 480ms ease-out'
-                        }};
-                        return e('section', {{ style }}, [
-                            e('style', {{key: 'style'}}, '@keyframes heroLift {{ from {{ opacity: 0; transform: translateY(10px) scale(0.99); }} to {{ opacity: 1; transform: translateY(0) scale(1); }} }} @keyframes heroShimmer {{ 0% {{ transform: translateX(-120%); }} 100% {{ transform: translateX(120%); }} }}'),
-                            (!imgLoaded && bg) ? e('div', {{
-                                key: 'loader',
-                                style: {{
-                                    position: 'absolute',
-                                    inset: 0,
-                                    background: 'linear-gradient(120deg, rgba(255,255,255,0.06), rgba(255,255,255,0.18), rgba(255,255,255,0.06))',
-                                    backdropFilter: 'blur(2px)',
-                                    overflow: 'hidden'
-                                }}
-                            }}, [
-                                e('div', {{
-                                    key: 'bar',
-                                    style: {{
-                                        position: 'absolute',
-                                        top: 0,
-                                        left: '-35%',
-                                        width: '35%',
-                                        height: '100%',
-                                        background: 'linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.32), rgba(255,255,255,0))',
-                                        animation: 'heroShimmer 1.15s ease-in-out infinite'
-                                    }}
-                                }})
-                            ]) : null,
-                            e('div', {{key: 'badge', style: {{fontSize: '11px', fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#d7f0e2'}}}}, badge),
-                            e('h2', {{key: 'title', style: {{margin: '0.55rem 0 0.35rem', fontFamily: 'Space Grotesk, sans-serif', fontSize: '2rem', lineHeight: 1.05}}}}, {title_js}),
-                            e('p', {{key: 'subtitle', style: {{margin: 0, maxWidth: '42rem', color: 'rgba(255,255,255,0.9)', fontSize: '0.96rem', lineHeight: 1.55}}}}, {subtitle_js}),
-                            e('div', {{key: 'chips', style: {{display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '1rem'}}}},
-                                chips.map((chip, index) => e('span', {{key: index, style: {{padding: '0.42rem 0.72rem', borderRadius: '999px', background: 'rgba(255,255,255,0.14)', border: '1px solid rgba(255,255,255,0.2)', fontSize: '0.76rem', fontWeight: 600}}}}, chip))
-                            )
-                        ]);
-                    }}
-                    ReactDOM.createRoot(document.getElementById('atlas-react-hero')).render(e(Hero));
-                </script>
-                """,
-                height=height,
-        )
-
-
-def render_metric_row(metrics: list[tuple[str, str, str]]) -> None:
-    cols = st.columns(len(metrics))
-    for col, (label, value, detail) in zip(cols, metrics):
-        with col:
-            st.markdown(
-                f"""
-                <div class="metric-shell">
-                    <div class="metric-label">{esc(label)}</div>
-                    <p class="metric-value">{esc(value)}</p>
-                    <p class="metric-detail">{esc(detail)}</p>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-
-def render_data_panel(title: str, description: str, df: pd.DataFrame, message: str = "No records found.") -> None:
-    st.markdown(
-        f"""
-        <div class="flat-section">
-            <div class="surface-head">
-                <div class="panel-kicker">Data panel</div>
-                <div class="surface-title">{esc(title)}</div>
-                <p class="surface-copy">{esc(description)}</p>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
+    hero_data_js = json.dumps(
+        {
+            "title": title,
+            "subtitle": subtitle,
+            "chips": chips,
+            "background_image": background_image or "",
+            "badge": badge,
+            "is_dark": is_dark,
+        }
     )
-    safe_df(df, message)
+    container_id = f"atlas-react-hero-{secrets.token_hex(6)}"
+    html_block = """
+        <div id="__ID__"></div>
+        <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+        <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+        <script>
+            const e = React.createElement;
+            const heroData = __HERO_DATA__;
+
+            function Hero() {
+                const [show, setShow] = React.useState(false);
+                const [imgLoaded, setImgLoaded] = React.useState(!heroData.background_image);
+                const [activeIdx, setActiveIdx] = React.useState(0);
+                const [pointer, setPointer] = React.useState({x: 0, y: 0});
+                const safeChips = (heroData.chips && heroData.chips.length ? heroData.chips : ['Ready']).slice(0, 6);
+
+                React.useEffect(() => {
+                    const timer = setTimeout(() => setShow(true), 40);
+                    return () => clearTimeout(timer);
+                }, []);
+
+                React.useEffect(() => {
+                    if (!heroData.background_image) {
+                        setImgLoaded(true);
+                        return;
+                    }
+                    const img = new Image();
+                    img.onload = () => setImgLoaded(true);
+                    img.onerror = () => setImgLoaded(true);
+                    img.src = heroData.background_image;
+                }, []);
+
+                React.useEffect(() => {
+                    if (safeChips.length <= 1) {
+                        return;
+                    }
+                    const rotate = setInterval(() => {
+                        setActiveIdx((prev) => (prev + 1) % safeChips.length);
+                    }, 2800);
+                    return () => clearInterval(rotate);
+                }, [safeChips.length]);
+
+                const shellBg = (heroData.background_image && imgLoaded)
+                    ? (heroData.is_dark
+                        ? 'linear-gradient(118deg, rgba(6,11,16,0.86) 0%, rgba(17,34,30,0.76) 58%, rgba(17,58,40,0.72) 100%), url(' + heroData.background_image + ')'
+                        : 'linear-gradient(118deg, rgba(12,17,28,0.78) 0%, rgba(23,46,40,0.68) 58%, rgba(34,87,63,0.64) 100%), url(' + heroData.background_image + ')')
+                    : (heroData.is_dark
+                        ? 'linear-gradient(128deg, #0b1210 0%, #183126 58%, #225139 100%)'
+                        : 'linear-gradient(128deg, #122033 0%, #1d3b32 58%, #2f6146 100%)');
+                const contentTransform = 'translate3d(' + (pointer.x * 8) + 'px,' + (pointer.y * 6) + 'px,0)';
+                const glowTransform = 'translate3d(' + (pointer.x * 14) + 'px,' + (pointer.y * 10) + 'px,0)';
+
+                return e('section', {
+                    className: 'atlas-hero-shell' + (show ? ' atlas-hero-show' : ''),
+                    style: { backgroundImage: shellBg },
+                    onMouseMove: (event) => {
+                        const rect = event.currentTarget.getBoundingClientRect();
+                        const relX = (event.clientX - rect.left) / Math.max(rect.width, 1);
+                        const relY = (event.clientY - rect.top) / Math.max(rect.height, 1);
+                        setPointer({
+                            x: Math.max(-1, Math.min(1, (relX - 0.5) * 2)),
+                            y: Math.max(-1, Math.min(1, (relY - 0.5) * 2))
+                        });
+                    },
+                    onMouseLeave: () => setPointer({x: 0, y: 0})
+                }, [
+                    e('style', { key: 'hero-style' }, `
+                        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap');
+                        * { box-sizing: border-box; }
+                        body { margin: 0; }
+                        .atlas-hero-shell {
+                            position: relative;
+                            overflow: hidden;
+                            border-radius: 22px;
+                            min-height: 196px;
+                            padding: 1rem 1.15rem;
+                            border: 1px solid rgba(173, 220, 194, 0.3);
+                            box-shadow: 0 18px 44px rgba(8, 16, 31, 0.34);
+                            background-size: 160% 160%;
+                            background-position: center;
+                            animation: atlasDrift 18s ease-in-out infinite alternate;
+                            opacity: 0;
+                            transform: translateY(8px);
+                            transition: opacity 420ms ease, transform 460ms cubic-bezier(0.22,1,0.36,1);
+                            font-family: 'Inter', 'Segoe UI', sans-serif;
+                            will-change: transform, opacity;
+                        }
+                        .atlas-hero-show { opacity: 1; transform: translateY(0); }
+                        .atlas-hero-top {
+                            display: flex;
+                            align-items: center;
+                            justify-content: space-between;
+                            gap: 0.6rem;
+                            margin-bottom: 0.55rem;
+                        }
+                        .atlas-hero-badge {
+                            display: inline-flex;
+                            align-items: center;
+                            height: 25px;
+                            padding: 0 0.72rem;
+                            border-radius: 999px;
+                            border: 1px solid rgba(171, 224, 194, 0.46);
+                            background: rgba(12, 22, 43, 0.42);
+                            color: rgba(224, 242, 255, 0.95);
+                            font-size: 0.69rem;
+                            font-weight: 700;
+                            letter-spacing: 0.08em;
+                            text-transform: uppercase;
+                        }
+                        .atlas-context-label {
+                            display: inline-flex;
+                            align-items: center;
+                            gap: 0.35rem;
+                            color: rgba(214, 236, 255, 0.9);
+                            font-size: 0.73rem;
+                            font-weight: 600;
+                        }
+                        .atlas-context-dot {
+                            width: 8px;
+                            height: 8px;
+                            border-radius: 999px;
+                            background: #4ade80;
+                            box-shadow: 0 0 0 rgba(74,222,128,0.42);
+                            animation: atlasPulse 1.8s ease-out infinite;
+                        }
+                        .atlas-hero-title {
+                            margin: 0;
+                            color: #f8fbff;
+                            font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+                            font-size: clamp(1.45rem, 3vw, 2rem);
+                            font-weight: 800;
+                            line-height: 1.08;
+                            letter-spacing: -0.02em;
+                        }
+                        .atlas-hero-sub {
+                            margin: 0.42rem 0 0;
+                            max-width: 46rem;
+                            color: rgba(225, 243, 255, 0.92);
+                            font-size: 0.9rem;
+                            line-height: 1.55;
+                            font-weight: 500;
+                        }
+                        .atlas-highlight {
+                            margin-top: 0.7rem;
+                            border-radius: 12px;
+                            border: 1px solid rgba(170, 222, 190, 0.42);
+                            background: rgba(8, 23, 44, 0.36);
+                            padding: 0.5rem 0.64rem;
+                            color: rgba(236, 247, 255, 0.96);
+                            font-size: 0.82rem;
+                            font-weight: 600;
+                            backdrop-filter: blur(3px);
+                            animation: atlasContextFade 320ms ease;
+                        }
+                        .atlas-chip-row {
+                            display: flex;
+                            flex-wrap: wrap;
+                            gap: 0.4rem;
+                            margin-top: 0.62rem;
+                        }
+                        .atlas-chip {
+                            display: inline-flex;
+                            align-items: center;
+                            padding: 0.3rem 0.65rem;
+                            border-radius: 999px;
+                            border: 1px solid rgba(173, 220, 194, 0.38);
+                            background: rgba(12, 28, 49, 0.33);
+                            color: rgba(232, 246, 255, 0.95);
+                            font-size: 0.72rem;
+                            font-weight: 600;
+                        }
+                        .atlas-chip-active {
+                            border-color: rgba(158, 247, 183, 0.72);
+                            background: rgba(22, 72, 45, 0.52);
+                            color: #f8fdff;
+                            transform: translateY(-1px);
+                        }
+                        .atlas-hero-glow {
+                            position: absolute;
+                            inset: auto -10% -36% auto;
+                            width: 250px;
+                            height: 250px;
+                            border-radius: 999px;
+                            background: radial-gradient(circle, rgba(74, 222, 128, 0.24) 0%, rgba(74, 222, 128, 0) 70%);
+                            pointer-events: none;
+                            z-index: 1;
+                            transition: transform 280ms ease;
+                        }
+                        .atlas-progress {
+                            margin-top: 0.52rem;
+                            width: 100%;
+                            height: 3px;
+                            border-radius: 999px;
+                            background: rgba(180, 214, 243, 0.22);
+                            overflow: hidden;
+                        }
+                        .atlas-progress > span {
+                            display: block;
+                            height: 100%;
+                            width: 100%;
+                            transform-origin: left;
+                            background: linear-gradient(90deg, rgba(134,239,172,0.94), rgba(52,211,153,0.92));
+                            animation: atlasProgress 2.7s linear forwards;
+                        }
+                        .atlas-content {
+                            position: relative;
+                            z-index: 3;
+                            transition: transform 280ms ease;
+                        }
+                        @keyframes atlasPulse {
+                            0% { box-shadow: 0 0 0 0 rgba(74,222,128,0.42); }
+                            100% { box-shadow: 0 0 0 8px rgba(74,222,128,0); }
+                        }
+                        @keyframes atlasProgress {
+                            from { transform: scaleX(0); opacity: 0.9; }
+                            to { transform: scaleX(1); opacity: 1; }
+                        }
+                        @keyframes atlasContextFade {
+                            from { opacity: 0; transform: translateY(4px); }
+                            to { opacity: 1; transform: translateY(0); }
+                        }
+                        @keyframes atlasDrift {
+                            0% { background-position: 18% 35%; }
+                            100% { background-position: 82% 64%; }
+                        }
+                        @media (max-width: 840px) {
+                            .atlas-hero-shell { padding: 0.95rem; }
+                            .atlas-hero-title { font-size: clamp(1.25rem, 4.8vw, 1.65rem); }
+                            .atlas-hero-sub { font-size: 0.85rem; }
+                        }
+                    `),
+                    e('div', { key: 'glow', className: 'atlas-hero-glow', style: { transform: glowTransform } }),
+                    e('div', { key: 'content', className: 'atlas-content', style: { transform: contentTransform } }, [
+                        e('div', { key: 'top', className: 'atlas-hero-top' }, [
+                            e('span', { key: 'badge', className: 'atlas-hero-badge' }, heroData.badge),
+                            e('span', { key: 'context', className: 'atlas-context-label' }, [
+                                e('span', { key: 'dot', className: 'atlas-context-dot' }),
+                                e('span', { key: 'txt' }, 'Dynamic context ' + (activeIdx + 1) + '/' + safeChips.length)
+                            ])
+                        ]),
+                        e('h2', { key: 'title', className: 'atlas-hero-title' }, heroData.title),
+                        e('p', { key: 'subtitle', className: 'atlas-hero-sub' }, heroData.subtitle),
+                        e('div', { key: 'highlight-' + activeIdx, className: 'atlas-highlight' }, safeChips[activeIdx]),
+                        e('div', { key: 'progress', className: 'atlas-progress' }, [
+                            e('span', { key: 'progress-fill-' + activeIdx })
+                        ]),
+                        e('div', { key: 'chips', className: 'atlas-chip-row' },
+                            safeChips.map((chip, idx) =>
+                                e('span', {
+                                    key: 'chip-' + idx,
+                                    className: 'atlas-chip' + (idx === activeIdx ? ' atlas-chip-active' : '')
+                                }, chip)
+                            )
+                        )
+                    ])
+                ]);
+            }
+
+            ReactDOM.createRoot(document.getElementById('__ID__')).render(e(Hero));
+        </script>
+    """
+    html_block = html_block.replace("__ID__", container_id).replace("__HERO_DATA__", hero_data_js)
+    components.html(html_block, height=height)
 
 
 def render_map(df: pd.DataFrame) -> None:
@@ -1002,6 +1531,20 @@ def render_map(df: pd.DataFrame) -> None:
             weight=3 if is_selected else 2,
             tooltip=tooltip,
             popup=row["name"],
+        ).add_to(fmap)
+
+    if st.session_state.last_clicked_coords:
+        pin_lat, pin_lng = st.session_state.last_clicked_coords
+        folium.CircleMarker(
+            location=[pin_lat, pin_lng],
+            radius=12,
+            color="#b45309",
+            fill=True,
+            fill_color="#f59e0b",
+            fill_opacity=0.95,
+            weight=3,
+            tooltip="New location pin",
+            popup=f"New location pin: {pin_lat:.6f}, {pin_lng:.6f}",
         ).add_to(fmap)
 
     st.markdown('<div class="glow-shell fade-slide">', unsafe_allow_html=True)
@@ -1070,7 +1613,8 @@ def render_map_page(locations_df: pd.DataFrame, all_locations_df: pd.DataFrame, 
             "Tap a marker to open the spotlight",
         ],
         badge="Map workspace",
-        height=220,
+        is_dark=st.session_state.get("ui_theme") == "dark",
+        height=236,
     )
 
     if show_welcome_transition:
@@ -1080,10 +1624,14 @@ def render_map_page(locations_df: pd.DataFrame, all_locations_df: pd.DataFrame, 
         st.session_state.just_signed_in_until = 0.0
         st.rerun()
 
-    map_col, inspector_col = st.columns([2.45, 1], gap="large")
-    with map_col:
+    if st.session_state.selected_location_id:
+        map_col, inspector_col = st.columns([2.5, 1], gap="large")
+        with map_col:
+            render_map(locations_df)
+        with inspector_col:
+            render_location_details()
+    else:
         render_map(locations_df)
-    with inspector_col:
         render_location_details()
 
 
@@ -1118,7 +1666,8 @@ def render_profile_page() -> None:
             f"Review rank: {review_rank_text}",
         ],
         badge="Contribution hub",
-        height=240,
+        is_dark=st.session_state.get("ui_theme") == "dark",
+        height=226,
     )
 
     st.markdown(
@@ -1221,6 +1770,10 @@ def render_profile_page() -> None:
 
 
 def render_auth_page() -> None:
+    top_left, _ = st.columns([1, 5])
+    with top_left:
+        render_theme_toggle("theme_toggle_auth")
+
     if st.session_state.logged_in_user:
         st.markdown(
             f"""
@@ -1254,21 +1807,7 @@ def render_auth_page() -> None:
             ["Map-first", "Favourites", "Reviews", "Photos"],
             background_image="https://images.unsplash.com/photo-1516834611397-8d633eaec5d0?auto=format&fit=crop&w=1600&q=80",
             badge="Manipal Atlas",
-        )
-        st.markdown(
-            """
-            <div style="margin-top:0.9rem; display:grid; gap:0.55rem;">
-                <div class="profile-card">
-                    <div class="profile-card-title">Map-first workflow</div>
-                    <p class="profile-card-copy">Browse places on the map, then open one spotlight panel for reviews, favourites, and photos.</p>
-                </div>
-                <div class="profile-card">
-                    <div class="profile-card-title">Clean contribution flow</div>
-                    <p class="profile-card-copy">Add a location, category, review, or image without exposing backend noise in the interface.</p>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
+            is_dark=st.session_state.get("ui_theme") == "dark",
         )
 
     with right_col:
@@ -1282,12 +1821,11 @@ def render_auth_page() -> None:
 
         with sign_in_tab:
             with st.form("login_form"):
-                email = st.text_input("Email", key="login_email", placeholder="name@example.com")
+                email = st.text_input("Email", key="login_email")
                 password = st.text_input(
                     "Password",
                     type="password",
                     key="login_password",
-                    placeholder="Enter your password",
                 )
                 login_submit = st.form_submit_button("Sign in", type="primary", width="stretch")
 
@@ -1309,13 +1847,12 @@ def render_auth_page() -> None:
 
         with register_tab:
             with st.form("register_form"):
-                name = st.text_input("Name", key="reg_name", placeholder="Your full name")
-                email = st.text_input("Email", key="reg_email", placeholder="name@example.com")
+                name = st.text_input("Name", key="reg_name")
+                email = st.text_input("Email", key="reg_email")
                 password = st.text_input(
                     "Password",
                     type="password",
                     key="reg_password",
-                    placeholder="Create a secure password",
                 )
                 register_submit = st.form_submit_button("Create account", type="primary", width="stretch")
 
@@ -1339,7 +1876,7 @@ def render_add_category_card() -> None:
         state_key="show_add_category",
     )
     with st.form("add_category_form", clear_on_submit=True):
-        category_name = st.text_input("Category name", placeholder="e.g. Restaurant, Hostel, Academic Block")
+        category_name = st.text_input("Category name")
         submitted = st.form_submit_button("Save category", type="primary", width="stretch")
     if submitted:
         try:
@@ -1356,11 +1893,12 @@ def render_add_location_card() -> None:
     if not st.session_state.show_add_location:
         return
 
-    if st.session_state.last_clicked_coords:
+    pin_is_set = bool(st.session_state.last_clicked_coords)
+    if pin_is_set:
         pin_lat, pin_lng = st.session_state.last_clicked_coords
         add_location_desc = f"Pinned coordinate: {pin_lat:.6f}, {pin_lng:.6f}"
     else:
-        add_location_desc = "Pinned coordinate: none selected"
+        add_location_desc = "Pinned coordinate: click on map to select"
 
     render_section_header(
         "Add new location",
@@ -1376,28 +1914,52 @@ def render_add_location_card() -> None:
         st.info("Create at least one category first.")
         return
 
-    default_lat = 13.3520
-    default_lng = 74.7920
     if st.session_state.last_clicked_coords:
-        default_lat, default_lng = st.session_state.last_clicked_coords
+        pin_lat, pin_lng = st.session_state.last_clicked_coords
+    else:
+        pin_lat, pin_lng = (None, None)
+
+    if not st.session_state.last_clicked_coords:
+        st.info("Click anywhere on the map to drop a pin, then save the location.")
+
+    clear_pin_col, pin_hint_col = st.columns([1, 2])
+    with clear_pin_col:
+        if st.button("Clear pin", width="stretch", key="clear_add_location_pin"):
+            st.session_state.last_clicked_coords = None
+            st.rerun()
+    with pin_hint_col:
+        st.caption("Map click sets the exact coordinate for this new location.")
 
     with st.form("add_location_form"):
-        name = st.text_input("Location name", placeholder="e.g. Innovation Center")
+        name = st.text_input("Location name")
         category_id = st.selectbox(
             "Category",
             categories["category_id"].tolist(),
             format_func=lambda cid: f"{cid} - {categories.loc[categories['category_id'] == cid, 'category_name'].iloc[0]}",
         )
-        address = st.text_input("Address", placeholder="Street, block, or nearby landmark")
-        description = st.text_area("Description", placeholder="What should someone know before visiting this location?")
+        address = st.text_input("Address")
+        description = st.text_area("Description")
         coord_col1, coord_col2 = st.columns(2)
         with coord_col1:
-            latitude = st.number_input("Latitude", value=float(default_lat), format="%.6f")
+            st.text_input(
+                "Latitude (from map pin)",
+                value=f"{pin_lat:.6f}" if pin_lat is not None else "Click map to set latitude",
+                disabled=True,
+            )
         with coord_col2:
-            longitude = st.number_input("Longitude", value=float(default_lng), format="%.6f")
+            st.text_input(
+                "Longitude (from map pin)",
+                value=f"{pin_lng:.6f}" if pin_lng is not None else "Click map to set longitude",
+                disabled=True,
+            )
         submitted = st.form_submit_button("Save location", type="primary", width="stretch")
 
     if submitted:
+        if not st.session_state.last_clicked_coords:
+            st.error("Pick a point on the map first, then save location.")
+            return
+
+        latitude, longitude = st.session_state.last_clicked_coords
         try:
             add_location(
                 name,
@@ -1410,6 +1972,7 @@ def render_add_location_card() -> None:
             )
             st.success("Location added.")
             st.session_state.show_add_location = False
+            st.session_state.last_clicked_coords = None
             st.session_state.data_version += 1
             st.rerun()
         except Exception as ex:
@@ -1718,18 +2281,6 @@ def render_location_details() -> None:
                                     st.rerun()
 
 
-def build_coverage_audit_df() -> pd.DataFrame:
-    return pd.DataFrame()
-
-
-def build_substitution_df() -> pd.DataFrame:
-    return pd.DataFrame()
-
-
-def build_improvement_df() -> pd.DataFrame:
-    return pd.DataFrame()
-
-
 def render_db_runtime_sections() -> None:
     txn_col, cursor_col = st.columns(2, gap="large")
     with txn_col:
@@ -1907,23 +2458,32 @@ def render_db_runtime_sections() -> None:
 def render_analytics_page() -> None:
     import datetime
 
-    render_page_banner(
-        "Logs",
-        "Trigger-backed audit logs.",
-        kicker="Logs",
-        chips=["Review logs", "Delete logs"],
+    review_log_df = get_review_logs()
+    deleted_log_df = get_deleted_location_audit()
+
+    render_react_hero(
+        "System logs and audit trail",
+        "Monitor trigger output and delete archives from one clean workspace.",
+        [
+            f"Review events: {len(review_log_df.index)}",
+            f"Delete events: {len(deleted_log_df.index)}",
+            f"Data version: {st.session_state.data_version}",
+        ],
+        badge="Operational insights",
+        is_dark=st.session_state.get("ui_theme") == "dark",
+        height=232,
     )
 
     refresh_col, ts_col = st.columns([1, 4])
     with refresh_col:
-        if st.button("↻  Refresh all data", key="analytics_refresh", type="primary", width="stretch"):
+        if st.button("Refresh all data", key="analytics_refresh", type="primary", width="stretch"):
             st.session_state.data_version += 1
             st.rerun()
     with ts_col:
         now_str = datetime.datetime.now().strftime("%H:%M:%S")
         st.markdown(
             f'<p style="color:var(--text-soft);margin:0.75rem 0 0 0.5rem;font-size:0.88rem;">'
-            f'Last refreshed at <strong>{now_str}</strong> &nbsp;·&nbsp; data version <strong>{st.session_state.data_version}</strong></p>',
+            f'Last refreshed at <strong>{now_str}</strong> | data version <strong>{st.session_state.data_version}</strong></p>',
             unsafe_allow_html=True,
         )
 
@@ -1940,7 +2500,7 @@ def render_analytics_page() -> None:
                 <div class="surface-head">
                     <div class="panel-kicker">Logs</div>
                     <div class="surface-title">Review audit log</div>
-                    <p class="surface-copy">Trigger-backed audit logs.</p>
+                    <p class="surface-copy">Trigger-backed rating change records.</p>
                 </div>
             </div>
             """,
@@ -1948,7 +2508,7 @@ def render_analytics_page() -> None:
         )
         if st.button("Refresh logs", key="refresh_review_logs_btn", width="stretch"):
             st.rerun()
-        safe_df(get_review_logs(), "No trigger log entries yet. Add or edit a review to generate log rows.")
+        safe_df(review_log_df, "No trigger log entries yet. Add or edit a review to generate log rows.")
 
     with delete_logs_tab:
         st.markdown(
@@ -1957,7 +2517,7 @@ def render_analytics_page() -> None:
                 <div class="surface-head">
                     <div class="panel-kicker">Logs</div>
                     <div class="surface-title">Deleted location archive log</div>
-                    <p class="surface-copy">Trigger-backed audit logs.</p>
+                    <p class="surface-copy">Records generated from archive-and-delete operations.</p>
                 </div>
             </div>
             """,
@@ -1965,7 +2525,7 @@ def render_analytics_page() -> None:
         )
         if st.button("Refresh logs", key="refresh_deleted_logs_btn", width="stretch"):
             st.rerun()
-        safe_df(get_deleted_location_audit(), "No locations have been deleted yet.")
+        safe_df(deleted_log_df, "No locations have been deleted yet.")
 
 
 
@@ -1999,6 +2559,7 @@ def init_state() -> None:
         "just_signed_in_until": 0.0,
         "current_page": "auth",
         "selected_category_id": None,
+        "ui_theme": "light",
         # Incremented after every write so analytics always shows fresh data.
         "data_version": 0,
         "query_log_reset_done": False,
@@ -2010,6 +2571,7 @@ def init_state() -> None:
 
 init_db()
 init_state()
+apply_theme_mode(st.session_state.ui_theme)
 if not st.session_state.query_log_reset_done:
     reset_query_log()
     st.session_state.query_log_reset_done = True
@@ -2033,6 +2595,22 @@ else:
     nav_col, content_col = st.columns([1.08, 3.92], gap="large")
 
     with nav_col:
+        render_theme_toggle("theme_toggle_nav")
+
+        workspace_state = "Signed in" if st.session_state.logged_in_user else "Guest mode"
+        st.markdown(
+            f"""
+            <p class="workspace-nav-kicker">Manipal Atlas</p>
+            <p class="workspace-nav-title">Map control center</p>
+            <p class="workspace-nav-copy">Use this panel to navigate views, filter places, and launch actions.</p>
+            <div class="workspace-chip-row">
+                <span class="workspace-chip">{esc(workspace_state)}</span>
+                <span class="workspace-chip">Page: {esc(st.session_state.current_page.title())}</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
         if st.session_state.logged_in_user:
             st.markdown(
                 f"<p class='status-text' style='margin:0 0 0.45rem;'>Signed in as {esc(st.session_state.logged_in_user['name'])}</p>",
@@ -2099,6 +2677,8 @@ else:
         if st.button("Add new location", icon=":material/add_location_alt:", width="stretch", key="nav_add_location"):
             st.session_state.show_add_location = not st.session_state.show_add_location
             st.session_state.show_add_category = False
+            if st.session_state.show_add_location:
+                st.session_state.current_page = "map"
         if st.button("Load sample data", width="stretch", key="nav_load_sample"):
             try:
                 insert_sample_data()
@@ -2145,3 +2725,5 @@ else:
             render_auth_page()
         else:
             render_map_page(locations_df, all_locations_df, categories_df)
+
+
