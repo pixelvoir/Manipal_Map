@@ -548,19 +548,6 @@ st.markdown(
         border-radius: var(--r-lg);
         padding: 1.25rem;
         box-shadow: var(--shadow-sm);
-        min-height: 560px;
-        display: flex;
-    }
-    .auth-panel-inner {
-        display: flex;
-        flex-direction: column;
-        gap: 0.85rem;
-        width: 100%;
-        min-height: 100%;
-    }
-    .auth-panel-content {
-        display: grid;
-        gap: 0.75rem;
     }
     .auth-panel-title { font-size: 1rem; font-weight: 700; color: var(--text); margin: 0; }
     .auth-panel-copy  { font-size: 0.82rem; color: var(--text-2); margin: 0.35rem 0 0.9rem; }
@@ -572,44 +559,6 @@ st.markdown(
         margin: 0.75rem 0 0;
     }
     .auth-feature-list li { margin-bottom: 0.3rem; }
-    .auth-benefits {
-        margin-top: auto;
-        border: 1px solid var(--border);
-        background: linear-gradient(150deg, var(--surface-alt) 0%, var(--surface) 100%);
-        border-radius: var(--r-md);
-        padding: 0.82rem 0.88rem;
-    }
-    .auth-benefits-title {
-        margin: 0 0 0.48rem;
-        font-size: 0.78rem;
-        font-weight: 800;
-        color: var(--text);
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-    }
-    .auth-benefits-grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 0.42rem;
-    }
-    .auth-benefit-chip {
-        border: 1px solid var(--border-strong);
-        background: var(--surface);
-        border-radius: 999px;
-        padding: 0.26rem 0.58rem;
-        font-size: 0.75rem;
-        font-weight: 700;
-        color: var(--text-2);
-        text-align: center;
-    }
-    @media (max-width: 1120px) {
-        .auth-panel {
-            min-height: auto;
-        }
-        .auth-benefits-grid {
-            grid-template-columns: 1fr;
-        }
-    }
 
     /* ── Sidebar text ────────────────────────────────────── */
     .nav-title {
@@ -1839,7 +1788,9 @@ def render_profile_page() -> None:
 
 
 def render_auth_page() -> None:
-    render_theme_toggle("theme_toggle_auth")
+    top_left, _ = st.columns([1, 5])
+    with top_left:
+        render_theme_toggle("theme_toggle_auth")
 
     if st.session_state.logged_in_user:
         st.markdown(
@@ -1865,23 +1816,21 @@ def render_auth_page() -> None:
                 st.rerun()
         return
 
-    left_col, right_col = st.columns([1.04, 0.96], gap="medium")
+    left_col, right_col = st.columns([1.08, 0.92], gap="large")
 
     with left_col:
         render_react_hero(
             "Discover Manipal, one place at a time",
             "Sign in to explore the map, save favourites, write reviews, and add new places. Registration is available if you are new here.",
-            ["Map-first", "Favourites", "Reviews", "Photos", "Add places"],
+            ["Map-first", "Favourites", "Reviews", "Photos"],
             background_image="https://images.unsplash.com/photo-1516834611397-8d633eaec5d0?auto=format&fit=crop&w=1600&q=80",
             badge="Manipal Atlas",
             is_dark=st.session_state.get("ui_theme") == "dark",
-            height=560,
         )
 
     with right_col:
         st.markdown('<div class="auth-panel">', unsafe_allow_html=True)
         st.markdown('<div class="auth-panel-inner">', unsafe_allow_html=True)
-        st.markdown('<div class="auth-panel-content">', unsafe_allow_html=True)
         st.markdown('<div class="panel-kicker">Secure access</div>', unsafe_allow_html=True)
         st.markdown('<p class="surface-title">Sign in to continue</p>', unsafe_allow_html=True)
         st.markdown('<p class="auth-mini">Create an account if you are new, then return to the map with your contributions saved.</p>', unsafe_allow_html=True)
@@ -1932,21 +1881,6 @@ def render_auth_page() -> None:
                 except Exception as ex:
                     st.error(f"Registration failed: {ex}")
 
-        st.markdown('</div>', unsafe_allow_html=True)
-        st.markdown(
-            """
-            <div class="auth-benefits">
-                <p class="auth-benefits-title">What you unlock</p>
-                <div class="auth-benefits-grid">
-                    <span class="auth-benefit-chip">Save favourites</span>
-                    <span class="auth-benefit-chip">Write reviews</span>
-                    <span class="auth-benefit-chip">Upload photos</span>
-                    <span class="auth-benefit-chip">Add locations</span>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
         st.markdown('</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 def render_add_category_card() -> None:
